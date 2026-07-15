@@ -155,16 +155,18 @@
   .statecard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 12px;margin-bottom:16px;}
   .statecard .lbl{font-size:12px;color:var(--ink-faint);letter-spacing:.4px;text-transform:uppercase;margin-bottom:11px;}
   .states{display:flex;gap:8px;flex-wrap:wrap;}
-  .state{flex:1 1 0;min-width:60px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 5px;cursor:pointer;text-align:center;transition:all .15s;}
+  .state{flex:1 1 0;min-width:0;border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 3px;cursor:pointer;text-align:center;transition:all .15s;}
   .state .dot{width:10px;height:10px;border-radius:50%;margin:0 auto 5px;}
-  .state .nm{font-size:11.5px;color:var(--ink-soft);}
+  .state .nm{font-size:11px;color:var(--ink-soft);letter-spacing:-.2px;}
   .state[data-k="good"] .dot{background:var(--good);}
   .state[data-k="joy"] .dot{background:var(--joy);}
+  .state[data-k="soso"] .dot{background:#cbb26a;}
   .state[data-k="low"] .dot{background:var(--low);}
   .state[data-k="break"] .dot{background:var(--break);}
   .state.on{border-width:1.5px;background:var(--paper);}
   .state.on[data-k="good"]{border-color:var(--good);}
   .state.on[data-k="joy"]{border-color:var(--joy);}
+  .state.on[data-k="soso"]{border-color:#cbb26a;}
   .state.on[data-k="low"]{border-color:var(--low);}
   .state.on[data-k="break"]{border-color:var(--break);}
   .state.on .nm{color:var(--ink);font-weight:600;}
@@ -220,6 +222,7 @@
   .daycell.s-joy{background:var(--joy);border-color:var(--joy);color:#fff;}
   .daycell.s-low{background:var(--low);border-color:var(--low);color:#fff;}
   .daycell.s-break{background:var(--break);border-color:var(--break);color:#fff;}
+  .daycell.s-soso{background:#cbb26a;border-color:#cbb26a;color:#fff;}
   .daycell.sc-1{background:#bd7b72;border-color:#bd7b72;color:#fff;}
   .daycell.sc-2{background:#9aa0ad;border-color:#9aa0ad;color:#fff;}
   .daycell.sc-3{background:#cbb26a;border-color:#cbb26a;color:#fff;}
@@ -361,7 +364,7 @@
     <div class="shsub">창 동작과 데이터 저장 위치를 여기서 조절해요.</div>
 
     <div class="setrow">
-      <div class="stxt2"><div class="stitle">기분 척도 모드</div><div class="sdesc">끄면 단어(해냄·즐거움·가라앉음·무너짐), 켜면 1~5 점수</div></div>
+      <div class="stxt2"><div class="stitle">기분 척도 모드</div><div class="sdesc">끄면 단어(해냄·즐거움·그럭저럭·가라앉음·무너짐), 켜면 1~5 점수</div></div>
       <button class="swtch" id="swMoodScale"><span class="knob"></span></button>
     </div>
     <div class="setrow">
@@ -405,8 +408,10 @@
     {id:"night",nm:"밤",  time:"내려놓는 시간"}
   ];
   var BNAME={dawn:"아침",noon:"점심",dusk:"저녁",night:"밤",inbox:"보관함"};
-  var STATES={good:"해냄",joy:"즐거움",low:"가라앉음",break:"무너짐"};
-  var STATE_COLORS={good:"var(--good)",joy:"var(--joy)",low:"var(--low)",break:"var(--break)"};
+  var STATES={good:"해냄",joy:"즐거움",soso:"그럭저럭",low:"가라앉음",break:"무너짐"};
+  var STATE_COLORS={good:"var(--good)",joy:"var(--joy)",soso:"#cbb26a",low:"var(--low)",break:"var(--break)"};
+  var STATE_TO_SCORE={good:5,joy:4,soso:3,low:2,break:1};
+  var SCORE_TO_STATE={1:"break",2:"low",3:"soso",4:"joy",5:"good"};
   var SCORE_COLORS=[null,"#bd7b72","#9aa0ad","#cbb26a","#d99a6c","#7da87f"];
   function moodMode(){ return (data.settings&&data.settings.moodMode)||"word"; }
   var WD=["일","월","화","수","목","금","토"];
@@ -430,6 +435,12 @@
     if(!d.inbox) d.inbox=[];
     if(!d.settings) d.settings={};
     if(!d.settings.moodMode) d.settings.moodMode="word";
+    Object.keys(d.days).forEach(function(k){
+      var rec=d.days[k];
+      if(rec && rec.state && (rec.score===undefined||rec.score===null) && STATE_TO_SCORE[rec.state]!=null){
+        rec.score=STATE_TO_SCORE[rec.state];
+      }
+    });
     return d;
   }
 
@@ -736,9 +747,19 @@
   document.getElementById("states").addEventListener("click",function(e){
     var d=day(cursor);
     var sc=e.target.closest(".score");
-    if(sc){ var v=+sc.dataset.s; d.score=(d.score===v)?null:v; save(); renderState(); renderStrip(); return; }
+    if(sc){
+      var v=+sc.dataset.s;
+      if(d.score===v){ d.score=null; d.state=null; }
+      else{ d.score=v; d.state=SCORE_TO_STATE[v]; }
+      save(); renderState(); renderStrip(); return;
+    }
     var el=e.target.closest(".state");
-    if(el){ var k=el.dataset.k; d.state=(d.state===k)?null:k; save(); renderState(); renderStrip(); }
+    if(el){
+      var k=el.dataset.k;
+      if(d.state===k){ d.state=null; d.score=null; }
+      else{ d.state=k; d.score=STATE_TO_SCORE[k]; }
+      save(); renderState(); renderStrip();
+    }
   });
   document.getElementById("prevBtn").addEventListener("click",function(){ shift(-1); });
   document.getElementById("nextBtn").addEventListener("click",function(){ shift(1); });
