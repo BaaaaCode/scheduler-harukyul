@@ -4,6 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>하루결</title>
+<!--
+  ⚠️ 이 파일은 원본(단독 브라우저 / 폰 PWA)이며 더 이상 활성 개발 대상이 아닙니다.
+  ─────────────────────────────────────────────────────────────
+  · 정본(canonical) = renderer/index.html  (Electron 데스크톱 앱)
+    앞으로 기능 추가·수정은 전부 그쪽에서 이루어집니다.
+  · 저장 방식이 다릅니다:
+      - 이 파일  : localStorage 키 'harukyul.v2'
+      - 정본     : 로컬 JSON 파일 (main.js의 window.api IPC)
+  · 폰 PWA를 다시 살릴 경우, renderer에 들어간 아래 기능들을 이 파일로 포팅해야 합니다:
+      [ ] 기분 단어 ↔ 1~5 척도 모드 (data.settings.moodMode, day.score)
+      [ ] 작업 4상태 (시작 전 / 진행 중 / 종료 / 완료)
+      [ ] 남은 업무 칸 + 자정 자동 이월
+      [ ] 블럭당 3개 제한 + 이중 배치 + 긴급 블럭(on/off)
+      [ ] 통계 페이지
+  · 그 전까지 이 파일은 손대지 말고 그대로 둡니다(참조/폴백용).
+-->
 <style>
   :root{
     --ink:#2b2a28;

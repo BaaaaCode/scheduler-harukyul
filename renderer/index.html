@@ -169,6 +169,16 @@
   .state.on[data-k="break"]{border-color:var(--break);}
   .state.on .nm{color:var(--ink);font-weight:600;}
 
+  /* ── Mood scale (1~5) ── */
+  .states.scale{gap:7px;}
+  .score{flex:1 1 0;min-width:44px;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 4px;cursor:pointer;text-align:center;transition:all .15s;}
+  .score .sdot{width:10px;height:10px;border-radius:50%;margin:0 auto 5px;opacity:.85;}
+  .score .num{font-size:15px;font-weight:600;color:var(--ink-soft);font-variant-numeric:tabular-nums;}
+  .score:hover{background:var(--paper);}
+  .score.on{border-width:1.5px;background:var(--paper);}
+  .score.on .num{color:var(--ink);}
+  .score.on .sdot{opacity:1;}
+
   /* ── Blocks ── */
   .block{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:12px;overflow:hidden;}
   .block-head{display:flex;align-items:center;gap:10px;padding:12px 14px;}
@@ -210,6 +220,11 @@
   .daycell.s-joy{background:var(--joy);border-color:var(--joy);color:#fff;}
   .daycell.s-low{background:var(--low);border-color:var(--low);color:#fff;}
   .daycell.s-break{background:var(--break);border-color:var(--break);color:#fff;}
+  .daycell.sc-1{background:#bd7b72;border-color:#bd7b72;color:#fff;}
+  .daycell.sc-2{background:#9aa0ad;border-color:#9aa0ad;color:#fff;}
+  .daycell.sc-3{background:#cbb26a;border-color:#cbb26a;color:#fff;}
+  .daycell.sc-4{background:#d99a6c;border-color:#d99a6c;color:#fff;}
+  .daycell.sc-5{background:#7da87f;border-color:#7da87f;color:#fff;}
   .daycell.istoday{box-shadow:0 0 0 2px var(--ink);}
   .dayw{font-size:9.5px;color:var(--ink-faint);}
   .legend{display:flex;gap:11px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line-soft);}
@@ -314,13 +329,8 @@
     </section>
 
     <section class="statecard fade">
-      <div class="lbl">오늘은 어떤 날</div>
-      <div class="states" id="states">
-        <div class="state" data-k="good"><div class="dot"></div><div class="nm">해냄</div></div>
-        <div class="state" data-k="joy"><div class="dot"></div><div class="nm">즐거움</div></div>
-        <div class="state" data-k="low"><div class="dot"></div><div class="nm">가라앉음</div></div>
-        <div class="state" data-k="break"><div class="dot"></div><div class="nm">무너짐</div></div>
-      </div>
+      <div class="lbl" id="stateLbl">오늘은 어떤 날</div>
+      <div class="states" id="states"></div>
     </section>
 
     <div id="blocks"></div>
@@ -329,12 +339,7 @@
       <h2>지난 흐름</h2>
       <div class="sub">기억이 아니라 기록으로. 최근 2주의 결.</div>
       <div class="strip" id="strip"></div>
-      <div class="legend">
-        <span><i style="background:var(--good)"></i>해냄</span>
-        <span><i style="background:var(--joy)"></i>즐거움</span>
-        <span><i style="background:var(--low)"></i>가라앉음</span>
-        <span><i style="background:var(--break)"></i>무너짐</span>
-      </div>
+      <div class="legend" id="moodLegend"></div>
     </section>
 
     <p class="note">보관함에 일단 다 적어두고, 할 수 있는 만큼만 블록으로 옮기세요.<br>옮기지 못한 게 남아 있어도 괜찮아요. 그게 정상이에요.</p>
@@ -355,6 +360,10 @@
     <h3>설정</h3>
     <div class="shsub">창 동작과 데이터 저장 위치를 여기서 조절해요.</div>
 
+    <div class="setrow">
+      <div class="stxt2"><div class="stitle">기분 척도 모드</div><div class="sdesc">끄면 단어(해냄·즐거움·가라앉음·무너짐), 켜면 1~5 점수</div></div>
+      <button class="swtch" id="swMoodScale"><span class="knob"></span></button>
+    </div>
     <div class="setrow">
       <div class="stxt2"><div class="stitle">항상 위</div><div class="sdesc">다른 창 위에 항상 떠 있게 합니다</div></div>
       <button class="swtch" id="swAlwaysOnTop"><span class="knob"></span></button>
@@ -397,6 +406,9 @@
   ];
   var BNAME={dawn:"아침",noon:"점심",dusk:"저녁",night:"밤",inbox:"보관함"};
   var STATES={good:"해냄",joy:"즐거움",low:"가라앉음",break:"무너짐"};
+  var STATE_COLORS={good:"var(--good)",joy:"var(--joy)",low:"var(--low)",break:"var(--break)"};
+  var SCORE_COLORS=[null,"#bd7b72","#9aa0ad","#cbb26a","#d99a6c","#7da87f"];
+  function moodMode(){ return (data.settings&&data.settings.moodMode)||"word"; }
   var WD=["일","월","화","수","목","금","토"];
 
   var data={days:{},inbox:[]};
@@ -407,7 +419,7 @@
   function keyOf(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
   function dateFromKey(k){var p=k.split("-");return new Date(+p[0],+p[1]-1,+p[2]);}
   function day(k){
-    if(!data.days[k]) data.days[k]={state:null,tasks:{dawn:[],noon:[],dusk:[],night:[]}};
+    if(!data.days[k]) data.days[k]={state:null,score:null,tasks:{dawn:[],noon:[],dusk:[],night:[]}};
     if(!data.days[k].tasks) data.days[k].tasks={dawn:[],noon:[],dusk:[],night:[]};
     return data.days[k];
   }
@@ -416,6 +428,8 @@
     if(!d) d={days:{},inbox:[]};
     if(!d.days) d={days:d||{},inbox:[]};
     if(!d.inbox) d.inbox=[];
+    if(!d.settings) d.settings={};
+    if(!d.settings.moodMode) d.settings.moodMode="word";
     return d;
   }
 
@@ -521,8 +535,33 @@
   }
 
   function renderState(){
-    var cur=day(cursor).state;
-    document.querySelectorAll(".state").forEach(function(el){ el.classList.toggle("on", el.dataset.k===cur); });
+    var mode=moodMode();
+    var d=day(cursor);
+    var wrap=document.getElementById("states");
+    var lbl=document.getElementById("stateLbl");
+    wrap.innerHTML="";
+    if(mode==="scale"){
+      lbl.textContent="오늘 기분 · 1 힘듦 → 5 좋음";
+      wrap.classList.add("scale");
+      for(var s=1;s<=5;s++){
+        var sc=document.createElement("div");
+        sc.className="score"+(d.score===s?" on":"");
+        sc.dataset.s=s;
+        sc.innerHTML='<div class="sdot"></div><div class="num">'+s+'</div>';
+        sc.querySelector(".sdot").style.background=SCORE_COLORS[s];
+        wrap.appendChild(sc);
+      }
+    }else{
+      lbl.textContent="오늘은 어떤 날";
+      wrap.classList.remove("scale");
+      Object.keys(STATES).forEach(function(k){
+        var el=document.createElement("div");
+        el.className="state"+(d.state===k?" on":"");
+        el.dataset.k=k;
+        el.innerHTML='<div class="dot"></div><div class="nm">'+STATES[k]+'</div>';
+        wrap.appendChild(el);
+      });
+    }
   }
 
   function renderBlocks(){
@@ -640,21 +679,50 @@
   }
 
   function renderStrip(){
+    var mode=moodMode();
     var strip=document.getElementById("strip"); strip.innerHTML="";
     var today=new Date(); today.setHours(0,0,0,0); var t=keyOf(today);
     for(var i=13;i>=0;i--){
       var d=new Date(today); d.setDate(today.getDate()-i); var k=keyOf(d);
-      var st=(data.days[k]&&data.days[k].state)||null;
+      var rec=data.days[k]||{};
       var col=document.createElement("div"); col.className="daycol";
       var cell=document.createElement("div");
-      cell.className="daycell"+(st?" s-"+st:"")+(k===t?" istoday":"");
+      var cls="daycell", tip=k;
+      if(mode==="scale"){
+        var sv=rec.score||null;
+        if(sv){ cls+=" sc-"+sv; tip+=" · "+sv+"점"; }
+      }else{
+        var st=rec.state||null;
+        if(st){ cls+=" s-"+st; tip+=" · "+STATES[st]; }
+      }
+      if(k===t) cls+=" istoday";
+      cell.className=cls;
       cell.textContent=d.getDate();
-      cell.title=k+(st?" · "+STATES[st]:"");
+      cell.title=tip;
       cell.addEventListener("click",(function(kk){return function(){cursor=kk;render();document.querySelector(".scroll").scrollTo({top:0,behavior:"smooth"});};})(k));
       var w=document.createElement("div"); w.className="dayw"; w.textContent=WD[d.getDay()];
       col.appendChild(cell); col.appendChild(w); strip.appendChild(col);
     }
     strip.scrollLeft=strip.scrollWidth;
+
+    var legend=document.getElementById("moodLegend");
+    if(legend){
+      legend.innerHTML="";
+      if(mode==="scale"){
+        for(var s=1;s<=5;s++){
+          var sp=document.createElement("span");
+          var lab=(s===1)?"1 힘듦":(s===5)?"5 좋음":String(s);
+          sp.innerHTML='<i style="background:'+SCORE_COLORS[s]+'"></i>'+lab;
+          legend.appendChild(sp);
+        }
+      }else{
+        Object.keys(STATES).forEach(function(kk){
+          var sp=document.createElement("span");
+          sp.innerHTML='<i style="background:'+STATE_COLORS[kk]+'"></i>'+STATES[kk];
+          legend.appendChild(sp);
+        });
+      }
+    }
   }
 
   /* ── Events ── */
@@ -666,9 +734,11 @@
   document.getElementById("inboxInput").addEventListener("keydown",function(e){ if(e.key==="Enter") addInbox(); });
 
   document.getElementById("states").addEventListener("click",function(e){
-    var el=e.target.closest(".state"); if(!el) return;
-    var k=el.dataset.k, d=day(cursor);
-    d.state=(d.state===k)?null:k; save(); renderState(); renderStrip();
+    var d=day(cursor);
+    var sc=e.target.closest(".score");
+    if(sc){ var v=+sc.dataset.s; d.score=(d.score===v)?null:v; save(); renderState(); renderStrip(); return; }
+    var el=e.target.closest(".state");
+    if(el){ var k=el.dataset.k; d.state=(d.state===k)?null:k; save(); renderState(); renderStrip(); }
   });
   document.getElementById("prevBtn").addEventListener("click",function(){ shift(-1); });
   document.getElementById("nextBtn").addEventListener("click",function(){ shift(1); });
@@ -695,6 +765,7 @@
     setSwitch("swAlwaysOnTop",!!cfg.alwaysOnTop);
     setSwitch("swOpacity", (cfg.opacity||1) < 1);
     setSwitch("swAutoStart", !!cfg.autoStart);
+    setSwitch("swMoodScale", moodMode()==="scale");
     document.getElementById("dataDirLabel").textContent=cfg.dataDir||"";
   }
   function setSwitch(id,on){ document.getElementById(id).classList.toggle("on",!!on); }
@@ -724,6 +795,11 @@
     var next=!(cfg.autoStart);
     var res=await window.api.toggleAutoStart(next);
     cfg.autoStart=res.value; applyConfigToUI();
+  });
+  document.getElementById("swMoodScale").addEventListener("click",function(){
+    if(!data.settings) data.settings={};
+    data.settings.moodMode=(moodMode()==="scale")?"word":"scale";
+    save(); applyConfigToUI(); renderState(); renderStrip();
   });
   document.getElementById("chooseFolderBtn").addEventListener("click",async function(){
     var res=await window.api.chooseFolder();

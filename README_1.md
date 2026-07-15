@@ -23,11 +23,17 @@
 
 ## 파일
 
-- `하루결.html` — 앱 본체. 순수 HTML/CSS/JS, 외부 라이브러리 없음.
-  데이터는 브라우저 localStorage 키 `harukyul.v2`에 저장.
+- `renderer/index.html` — **정본(canonical). 앱 본체이자 활성 개발 대상.**
+  순수 HTML/CSS/JS, 외부 라이브러리 없음. 데이터는 로컬 JSON 파일에 저장
+  (Electron main 프로세스의 `window.api` IPC 경유).
+- `main.js` / `preload.js` — Electron 껍데기. 창(frameless·always-on-top·트레이),
+  JSON 저장/불러오기, 내보내기/가져오기, 저장 폴더 선택.
+- `하루결.html` — **원본(동결). 폰 PWA/단독 브라우저용 초기 버전.**
+  localStorage 키 `harukyul.v2` 사용. 더 이상 개발하지 않으며 참조/폴백용으로만 남겨둠.
 
-> 이 HTML 하나가 폰(PWA)과 노트북(Electron) 양쪽의 공통 자산.
-> HTML을 손보면 양쪽에 그대로 재사용된다.
+> 처음엔 폰(PWA)·노트북(Electron)이 이 HTML 하나를 공유하는 구조를 의도했으나,
+> 지금은 노트북 전용으로 쓰면서 `renderer/index.html`이 정본으로 갈라졌다.
+> 폰을 다시 살릴 계획이 생기면 그때 공통 로직 분리를 검토한다(파일 상단 주석의 포팅 체크리스트 참고).
 
 ---
 
@@ -46,15 +52,19 @@
 순서대로. **하나가 일상에 자리 잡은 걸 확인한 다음 다음으로 넘어간다.**
 동시에 여러 개 떠안지 말 것 — 도구 만들다 부하 늘리면 본말전도.
 
-### 1-B. 노트북 (Windows / Electron) — **먼저 이것부터**
+### 1-B. 노트북 (Windows / Electron) — ✅ **완료 (현재 정본)**
 바탕화면 스티커 메모처럼 상주하는 데스크톱 앱.
-- 항상 위(always on top), frameless 작은 창, 시작 시 자동 실행, 트레이 토글
-- 저장은 로컬 JSON 파일 → OneDrive 폴더에 두면 노트북 간 자동 백업
-- 기존 HTML/CSS/JS를 렌더러로 그대로 재사용
-- 빌드: npm 기반, portable .exe 수준이면 충분
+- ✅ 항상 위(always on top), frameless 작은 창, 자동 실행 토글, 트레이 토글
+- ✅ 저장은 로컬 JSON 파일 → OneDrive 폴더에 두면 노트북 간 자동 백업
+- ✅ 기존 HTML/CSS/JS를 렌더러로 재사용 → 이후 정본으로 분리
+- ✅ 빌드: `npm run build`로 portable .exe (dist/)
 
-**MVP 먼저**: 창에 하루결이 뜨는 것까지가 1차 목표.
-always-on-top·자동시작 등은 그 다음에 하나씩 켠다.
+### 진행 중. 기능 개선 (renderer/index.html)
+노트북 상주 앱이 자리 잡은 뒤, 실사용하며 다듬는 항목들. 순서대로 하나씩.
+- [ ] 기분 단어 ↔ 1~5 척도 모드 (설정 토글)
+- [ ] 작업 4상태(시작 전 / 진행 중 / 종료 / 완료) + 남은 업무 칸 + 자정 자동 이월
+- [ ] 블럭당 3개 제한 + 이중 배치 + 긴급 블럭(on/off) + 보관함·핵심 스크롤
+- [ ] 통계 페이지(작업 수 · 하위업무 수 · 감정 추세선)
 
 ### 1-A. 폰 (Android / PWA)
 홈 화면에 설치하는 앱.
