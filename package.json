@@ -1,0 +1,32 @@
+{
+  "name": "harukyul-desktop",
+  "version": "1.0.0",
+  "description": "하루결 - 개인용 데스크톱 스티커 메모 앱",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^31.3.1",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.personal.harukyul",
+    "productName": "하루결",
+    "directories": { "output": "dist" },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": "portable"
+    },
+    "portable": {
+      "artifactName": "하루결-portable.exe"
+    }
+  }
+}

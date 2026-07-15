@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Local runtime / user data (개인 데이터 - 커밋 금지)
+config.json
+*.tmp
+*.tmp-*
+harukyul-data.json
+harukyul-export-*.json
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
