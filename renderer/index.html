@@ -22,6 +22,7 @@
     --low:#8a93a8;
     --break:#bd7b72;
     --accent:#3f6f63;
+    --urgent:#c0574e;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
   html,body{height:100%;}
@@ -98,6 +99,7 @@
   .sitem[data-b="noon"] .sb{background:var(--noon);}
   .sitem[data-b="dusk"] .sb{background:var(--dusk);}
   .sitem[data-b="night"] .sb{background:var(--night);}
+  .sitem[data-b="urgent"] .sb{background:var(--urgent);}
   .sitem .stxt{flex:1;font-size:13.5px;color:var(--ink);word-break:break-word;}
   .sitem .stag{flex:none;font-size:10.5px;color:var(--ink-faint);}
 
@@ -116,7 +118,9 @@
     background:var(--paper);border:1px solid var(--line-soft);
     padding:2px 8px;border-radius:20px;
   }
-  .inbox-list{display:flex;flex-direction:column;gap:7px;margin-bottom:11px;}
+  .inbox-list{display:flex;flex-direction:column;gap:7px;margin-bottom:11px;max-height:150px;overflow-y:auto;}
+  .inbox-list::-webkit-scrollbar{width:5px;}
+  .inbox-list::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
   .inbox-empty{
     font-size:13px;color:var(--ink-faint);text-align:center;
     padding:10px 0 14px;line-height:1.6;
@@ -150,6 +154,18 @@
     border-radius:9px;padding:0 14px;font-size:13px;cursor:pointer;font-family:inherit;transition:opacity .15s;
   }
   .addrow button:hover{opacity:.9;}
+  .addrow input:disabled{background:var(--paper);color:var(--ink-faint);cursor:not-allowed;}
+  .addrow button:disabled{opacity:.4;cursor:not-allowed;}
+
+  /* ── Carry / 남은 업무 ── */
+  .carry{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 12px;margin-bottom:16px;}
+  .carry .lbl{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--ink-faint);letter-spacing:.4px;text-transform:uppercase;margin-bottom:10px;}
+  .carry .lbl .cnt{text-transform:none;letter-spacing:0;font-size:11.5px;background:var(--paper);border:1px solid var(--line-soft);padding:2px 8px;border-radius:20px;}
+  .carry-list{display:flex;flex-direction:column;gap:7px;}
+  .carry-pill{border-left:3px solid var(--noon);}
+  .carry-pill .cstat{flex:none;width:9px;height:9px;border-radius:50%;background:var(--ink-faint);}
+  .carry-pill .cstat.st-doing{background:var(--accent);}
+  .carry-pill .cfrom{flex:none;font-size:10.5px;color:var(--ink-faint);white-space:nowrap;}
 
   /* ── State ── */
   .statecard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 12px;margin-bottom:16px;}
@@ -189,6 +205,9 @@
   .block[data-b="noon"] .block-mark{background:var(--noon);}
   .block[data-b="dusk"] .block-mark{background:var(--dusk);}
   .block[data-b="night"] .block-mark{background:var(--night);}
+  .block[data-b="urgent"] .block-mark{background:var(--urgent);}
+  .block[data-b="urgent"]{border-color:var(--urgent);}
+  .block[data-b="urgent"] .nm{color:var(--urgent);}
   .block-title{flex:1;}
   .block-title .nm{font-size:15px;font-weight:600;letter-spacing:-.2px;}
   .block-title .time{font-size:11px;color:var(--ink-faint);margin-top:1px;}
@@ -208,6 +227,17 @@
   .task .del{flex:none;border:none;background:none;color:var(--ink-faint);font-size:16px;line-height:1;cursor:pointer;padding:0 2px;opacity:.55;transition:opacity .15s,color .15s;}
   .task .del:hover{opacity:1;color:var(--break);}
   .block .addrow{padding:8px 14px 14px;}
+
+  /* ── Task status (4-state) ── */
+  .st{width:20px;height:20px;border-radius:50%;flex:none;margin-top:1px;border:1.5px solid var(--ink-faint);background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;padding:0;}
+  .st svg{width:11px;height:11px;}
+  .st .ic-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+  .st .ic-x{font-size:10px;line-height:1;color:var(--ink-faint);}
+  .task.st-doing .st{border-color:var(--accent);}
+  .task.st-done .st{background:var(--accent);border-color:var(--accent);}
+  .task.st-dropped .st{border-color:var(--line);background:var(--paper);}
+  .task.st-done .txt{color:var(--ink-faint);text-decoration:line-through;text-decoration-color:var(--line);}
+  .task.st-dropped .txt{color:var(--ink-faint);text-decoration:line-through;text-decoration-color:var(--line);font-style:italic;opacity:.7;}
 
   /* ── History ── */
   .history{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 14px 14px;}
@@ -266,9 +296,13 @@
   .sopt[data-b="noon"] .sm{background:var(--noon);}
   .sopt[data-b="dusk"] .sm{background:var(--dusk);}
   .sopt[data-b="night"] .sm{background:var(--night);}
+  .sopt[data-b="urgent"] .sm{background:var(--urgent);}
   .sopt[data-b="inbox"] .sm{background:var(--ink-faint);}
   .sopt .stime{margin-left:auto;font-size:11px;color:var(--ink-faint);}
   .sopt.current{opacity:.45;cursor:default;}
+  .sopt.sel{border-color:var(--accent);background:var(--paper);}
+  .sopt.disabled{opacity:.4;cursor:default;}
+  .sopt .selmark{margin-left:8px;color:var(--accent);font-weight:700;font-size:13px;}
   .sheet-cancel{
     width:100%;margin-top:14px;border:none;background:none;color:var(--ink-soft);
     font-size:13.5px;padding:10px;cursor:pointer;font-family:inherit;
@@ -331,6 +365,11 @@
       </div>
     </section>
 
+    <section class="carry fade" id="carrySec" style="display:none;">
+      <div class="lbl"><span>남은 업무</span><span class="cnt" id="carryCnt">0</span></div>
+      <div class="carry-list" id="carryList"></div>
+    </section>
+
     <section class="statecard fade">
       <div class="lbl" id="stateLbl">오늘은 어떤 날</div>
       <div class="states" id="states"></div>
@@ -354,6 +393,7 @@
     <h3 id="sheetTitle">어느 시간에 둘까요</h3>
     <div class="shsub" id="sheetSub"></div>
     <div class="sheet-opts" id="sheetOpts"></div>
+    <button class="setbtn" id="sheetApply" style="width:100%;margin-top:14px;">여기에 배치</button>
     <button class="sheet-cancel" id="sheetCancel">닫기</button>
   </div>
 </div>
@@ -366,6 +406,10 @@
     <div class="setrow">
       <div class="stxt2"><div class="stitle">기분 척도 모드</div><div class="sdesc">끄면 단어(해냄·즐거움·그럭저럭·가라앉음·무너짐), 켜면 1~5 점수</div></div>
       <button class="swtch" id="swMoodScale"><span class="knob"></span></button>
+    </div>
+    <div class="setrow">
+      <div class="stxt2"><div class="stitle">긴급 블럭</div><div class="sdesc">아침 위에 '긴급' 블럭을 표시합니다</div></div>
+      <button class="swtch" id="swUrgent"><span class="knob"></span></button>
     </div>
     <div class="setrow">
       <div class="stxt2"><div class="stitle">항상 위</div><div class="sdesc">다른 창 위에 항상 떠 있게 합니다</div></div>
@@ -407,13 +451,28 @@
     {id:"dusk", nm:"저녁", time:"마무리하는 시간"},
     {id:"night",nm:"밤",  time:"내려놓는 시간"}
   ];
-  var BNAME={dawn:"아침",noon:"점심",dusk:"저녁",night:"밤",inbox:"보관함"};
+  var URGENT={id:"urgent",nm:"긴급",time:"지금 아니면 안 되는 것"};
+  var ALL_BLOCK_IDS=["urgent","dawn","noon","dusk","night"];
+  var BLOCK_LIMIT=3;
+  var BNAME={urgent:"긴급",dawn:"아침",noon:"점심",dusk:"저녁",night:"밤",inbox:"보관함"};
+  function visibleBlocks(){ return (data.settings&&data.settings.urgentOn?[URGENT]:[]).concat(BLOCKS); }
+  function activeCount(arr){ return (arr||[]).filter(function(t){return t.status==="todo"||t.status==="doing";}).length; }
+  function blockFull(bid){ return activeCount(day(cursor).tasks[bid])>=BLOCK_LIMIT; }
   var STATES={good:"해냄",joy:"즐거움",soso:"그럭저럭",low:"가라앉음",break:"무너짐"};
   var STATE_COLORS={good:"var(--good)",joy:"var(--joy)",soso:"#cbb26a",low:"var(--low)",break:"var(--break)"};
   var STATE_TO_SCORE={good:5,joy:4,soso:3,low:2,break:1};
   var SCORE_TO_STATE={1:"break",2:"low",3:"soso",4:"joy",5:"good"};
   var SCORE_COLORS=[null,"#bd7b72","#9aa0ad","#cbb26a","#d99a6c","#7da87f"];
   function moodMode(){ return (data.settings&&data.settings.moodMode)||"word"; }
+  var STATUS_ORDER=["todo","doing","done","dropped"];
+  var STATUS_LABEL={todo:"시작 전",doing:"진행 중",done:"완료",dropped:"종료"};
+  function cycleStatus(s){ var i=STATUS_ORDER.indexOf(s); if(i<0)i=0; return STATUS_ORDER[(i+1)%STATUS_ORDER.length]; }
+  function statusIcon(st){
+    if(st==="done") return '<svg viewBox="0 0 12 12" fill="none"><path d="M2 6.2l2.6 2.6L10 3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    if(st==="doing") return '<span class="ic-dot"></span>';
+    if(st==="dropped") return '<span class="ic-x">✕</span>';
+    return '';
+  }
   var WD=["일","월","화","수","목","금","토"];
 
   var data={days:{},inbox:[]};
@@ -424,15 +483,18 @@
   function keyOf(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
   function dateFromKey(k){var p=k.split("-");return new Date(+p[0],+p[1]-1,+p[2]);}
   function day(k){
-    if(!data.days[k]) data.days[k]={state:null,score:null,tasks:{dawn:[],noon:[],dusk:[],night:[]}};
-    if(!data.days[k].tasks) data.days[k].tasks={dawn:[],noon:[],dusk:[],night:[]};
-    return data.days[k];
+    if(!data.days[k]) data.days[k]={state:null,score:null,tasks:{}};
+    var d=data.days[k];
+    if(!d.tasks) d.tasks={};
+    ALL_BLOCK_IDS.forEach(function(b){ if(!d.tasks[b]) d.tasks[b]=[]; });
+    return d;
   }
   function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
   function migrate(d){
     if(!d) d={days:{},inbox:[]};
     if(!d.days) d={days:d||{},inbox:[]};
     if(!d.inbox) d.inbox=[];
+    if(!d.carry) d.carry=[];
     if(!d.settings) d.settings={};
     if(!d.settings.moodMode) d.settings.moodMode="word";
     Object.keys(d.days).forEach(function(k){
@@ -440,6 +502,18 @@
       if(rec && rec.state && (rec.score===undefined||rec.score===null) && STATE_TO_SCORE[rec.state]!=null){
         rec.score=STATE_TO_SCORE[rec.state];
       }
+      if(rec && rec.tasks){
+        ALL_BLOCK_IDS.forEach(function(bid){
+          (rec.tasks[bid]||[]).forEach(function(t){
+            if(!t.status) t.status = t.done ? "done" : "todo";
+            if("done" in t) delete t.done;
+          });
+        });
+      }
+    });
+    d.carry.forEach(function(t){
+      if(!t.status) t.status = t.done ? "done" : "todo";
+      if("done" in t) delete t.done;
     });
     return d;
   }
@@ -466,7 +540,9 @@
     }
     cfg=await window.api.getConfig();
     applyConfigToUI();
+    rolloverIfNeeded();
     render();
+    scheduleMidnight();
   }
 
   function save(){
@@ -475,8 +551,47 @@
     saveTimer=setTimeout(function(){ window.api.saveData(data); }, 150);
   }
 
+  /* ── 자정 이월: 전날의 시작전·진행중 작업을 '남은 업무'로 옮김 ── */
+  function rolloverIfNeeded(){
+    var todayKey=keyOf(new Date());
+    if(!data.settings.rolloverThrough){ data.settings.rolloverThrough=todayKey; save(); return 0; }
+    if(data.settings.rolloverThrough===todayKey) return 0;
+    var cur=dateFromKey(data.settings.rolloverThrough);
+    if(cur>dateFromKey(todayKey)){ data.settings.rolloverThrough=todayKey; save(); return 0; }
+    var moved=0, guard=0;
+    while(keyOf(cur)!==todayKey){
+      var k=keyOf(cur), d=data.days[k];
+      if(d && d.tasks){
+        ALL_BLOCK_IDS.forEach(function(bid){
+          var arr=d.tasks[bid]||[], keep=[];
+          arr.forEach(function(t){
+            var s=t.status||"todo";
+            if(s==="todo"||s==="doing"){ data.carry.push({id:t.id,txt:t.txt,status:s,from:k,fromBlock:bid}); moved++; }
+            else keep.push(t);
+          });
+          d.tasks[bid]=keep;
+        });
+      }
+      cur.setDate(cur.getDate()+1);
+      if(++guard>3660) break;
+    }
+    data.settings.rolloverThrough=todayKey;
+    save();
+    return moved;
+  }
+  function scheduleMidnight(){
+    var now=new Date();
+    var next=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1,0,0,5);
+    setTimeout(function(){
+      rolloverIfNeeded();
+      cursor=keyOf(new Date());
+      render();
+      scheduleMidnight();
+    }, Math.max(1000, next-now));
+  }
+
   /* ── Render ── */
-  function render(){ renderDate(); renderSummary(); renderInbox(); renderState(); renderBlocks(); renderStrip(); }
+  function render(){ renderDate(); renderSummary(); renderInbox(); renderCarry(); renderState(); renderBlocks(); renderStrip(); }
 
   function renderDate(){
     var d=dateFromKey(cursor), t=keyOf(new Date()), rel="";
@@ -493,9 +608,9 @@
     var todayKey=keyOf(new Date());
     var d=day(todayKey);
     var items=[];
-    BLOCKS.forEach(function(b){
+    visibleBlocks().forEach(function(b){
       (d.tasks[b.id]||[]).forEach(function(t){
-        if(!t.done) items.push({bid:b.id,bnm:b.nm,txt:t.txt});
+        if(t.status==="todo"||t.status==="doing") items.push({bid:b.id,bnm:b.nm,txt:t.txt});
       });
     });
     var list=document.getElementById("summaryList");
@@ -545,6 +660,43 @@
     });
   }
 
+  function fromLabel(it){
+    if(!it.from) return "";
+    var p=it.from.split("-");
+    return (+p[1])+"/"+(+p[2])+(it.fromBlock&&BNAME[it.fromBlock]?(" "+BNAME[it.fromBlock]):"");
+  }
+  function renderCarry(){
+    var sec=document.getElementById("carrySec");
+    var list=document.getElementById("carryList");
+    var arr=data.carry||[];
+    document.getElementById("carryCnt").textContent=arr.length;
+    if(!arr.length){ sec.style.display="none"; return; }
+    sec.style.display="";
+    list.innerHTML="";
+    arr.forEach(function(it){
+      var st=it.status||"todo";
+      var p=document.createElement("div"); p.className="pill carry-pill";
+      p.innerHTML=
+        '<span class="cstat st-'+st+'" title="'+STATUS_LABEL[st]+'"></span>'+
+        '<div class="ptxt" contenteditable="true" spellcheck="false"></div>'+
+        '<span class="cfrom"></span>'+
+        '<button class="place">배치</button>'+
+        '<button class="del" aria-label="삭제">×</button>';
+      p.querySelector(".ptxt").textContent=it.txt;
+      p.querySelector(".cfrom").textContent=fromLabel(it);
+      var txt=p.querySelector(".ptxt");
+      txt.addEventListener("blur",function(){
+        var v=txt.textContent.trim();
+        if(!v){ removeCarry(it.id); return; }
+        it.txt=v; save();
+      });
+      txt.addEventListener("keydown",function(e){ if(e.key==="Enter"){e.preventDefault();txt.blur();} });
+      p.querySelector(".place").addEventListener("click",function(){ openSheet("carry",it.id,it.txt); });
+      p.querySelector(".del").addEventListener("click",function(){ removeCarry(it.id); });
+      list.appendChild(p);
+    });
+  }
+
   function renderState(){
     var mode=moodMode();
     var d=day(cursor);
@@ -578,16 +730,18 @@
   function renderBlocks(){
     var wrap=document.getElementById("blocks"); wrap.innerHTML="";
     var d=day(cursor);
-    BLOCKS.forEach(function(b){
+    visibleBlocks().forEach(function(b){
       var list=d.tasks[b.id]||[];
-      var done=list.filter(function(t){return t.done;}).length;
+      var done=list.filter(function(t){return t.status==="done";}).length;
+      var dropped=list.filter(function(t){return t.status==="dropped";}).length;
+      var denom=list.length-dropped;
       var el=document.createElement("section");
       el.className="block fade"; el.dataset.b=b.id;
-      var cntCls="block-count"+(list.length&&done===list.length?" done":"");
+      var cntCls="block-count"+(denom>0&&done===denom?" done":"");
       el.innerHTML=
         '<div class="block-head"><div class="block-mark"></div>'+
         '<div class="block-title"><div class="nm">'+b.nm+'</div><div class="time">'+b.time+'</div></div>'+
-        '<div class="'+cntCls+'">'+done+' / '+list.length+'</div></div>'+
+        '<div class="'+cntCls+'">'+done+' / '+denom+'</div></div>'+
         '<div class="tasks"></div>'+
         '<div class="addrow"><input type="text" placeholder="여기서 바로 적어 넣어도 돼요" aria-label="할 일 추가"><button>추가</button></div>';
       var tasksEl=el.querySelector(".tasks");
@@ -595,31 +749,33 @@
       var inp=el.querySelector("input"), btn=el.querySelector(".addrow button");
       function add(){
         var v=inp.value.trim(); if(!v) return;
-        day(cursor).tasks[b.id].push({id:uid(),txt:v,done:false});
+        if(activeCount(day(cursor).tasks[b.id])>=BLOCK_LIMIT){ toast("이 블럭은 "+BLOCK_LIMIT+"개까지예요"); return; }
+        day(cursor).tasks[b.id].push({id:uid(),txt:v,status:"todo"});
         save(); inp.value=""; renderBlocks(); renderSummary();
         document.querySelectorAll(".block").forEach(function(bl){ if(bl.dataset.b===b.id) bl.querySelector("input").focus(); });
       }
       btn.addEventListener("click",add);
       inp.addEventListener("keydown",function(e){ if(e.key==="Enter") add(); });
+      if(activeCount(list)>=BLOCK_LIMIT){
+        inp.disabled=true; btn.disabled=true;
+        inp.placeholder="이 블럭은 "+BLOCK_LIMIT+"개까지 (완료·종료하면 자리 남음)";
+      }
       wrap.appendChild(el);
     });
   }
 
   function taskNode(bid,t){
+    var st=t.status||"todo";
     var node=document.createElement("div");
-    node.className="task"+(t.done?" done":"");
+    node.className="task st-"+st;
     node.innerHTML=
-      '<div class="check" role="checkbox" tabindex="0" aria-checked="'+t.done+'">'+
-        '<svg viewBox="0 0 12 12" fill="none"><path d="M2 6.2l2.6 2.6L10 3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
-      '</div>'+
+      '<button class="st" title="상태: '+STATUS_LABEL[st]+' (클릭해 변경)">'+statusIcon(st)+'</button>'+
       '<div class="txt" contenteditable="true" spellcheck="false"></div>'+
       '<button class="move" aria-label="옮기기">⇄</button>'+
       '<button class="del" aria-label="삭제">×</button>';
     node.querySelector(".txt").textContent=t.txt;
-    function toggle(){ t.done=!t.done; save(); renderBlocks(); renderSummary(); renderStrip(); }
-    var chk=node.querySelector(".check");
-    chk.addEventListener("click",toggle);
-    chk.addEventListener("keydown",function(e){ if(e.key===" "||e.key==="Enter"){e.preventDefault();toggle();} });
+    function cycle(){ t.status=cycleStatus(t.status||"todo"); save(); renderBlocks(); renderSummary(); renderStrip(); }
+    node.querySelector(".st").addEventListener("click",cycle);
     var txt=node.querySelector(".txt");
     txt.addEventListener("blur",function(){
       var v=txt.textContent.trim();
@@ -643,49 +799,78 @@
     if(i>-1) data.inbox.splice(i,1);
     save(); renderInbox();
   }
+  function removeCarry(id){
+    var i=data.carry.findIndex(function(x){return x.id===id;});
+    if(i>-1) data.carry.splice(i,1);
+    save(); renderCarry();
+  }
 
   /* ── Move sheet ── */
   var sheetCtx=null;
+  var sheetSel={};
   function openSheet(from,id,txt){
     sheetCtx={from:from,id:id};
-    document.getElementById("sheetSub").textContent="'"+txt+"'";
+    sheetSel={};
+    document.getElementById("sheetTitle").textContent="어느 블럭에 둘까요";
+    document.getElementById("sheetSub").textContent="'"+txt+"' · 여러 블럭 선택 가능";
+    renderSheetOpts();
+    document.getElementById("sheetBack").classList.add("open");
+  }
+  function renderSheetOpts(){
+    var from=sheetCtx.from;
     var opts=document.getElementById("sheetOpts"); opts.innerHTML="";
-    BLOCKS.forEach(function(b){
+    visibleBlocks().forEach(function(b){
+      var full=blockFull(b.id) && b.id!==from;
+      var sel=!!sheetSel[b.id];
       var btn=document.createElement("button");
-      btn.className="sopt"+(from===b.id?" current":""); btn.dataset.b=b.id;
-      btn.innerHTML='<span class="sm"></span>'+b.nm+'<span class="stime">'+b.time+'</span>';
-      if(from!==b.id) btn.addEventListener("click",function(){ moveTo(b.id); });
+      btn.className="sopt"+(sel?" sel":"")+(full?" disabled":""); btn.dataset.b=b.id;
+      btn.innerHTML='<span class="sm"></span>'+b.nm+
+        '<span class="stime">'+(full?("꽉 참 ("+BLOCK_LIMIT+")"):b.time)+'</span>'+
+        '<span class="selmark">'+(sel?"✓":"")+'</span>';
+      if(!full) btn.addEventListener("click",function(){ sheetSel[b.id]=!sheetSel[b.id]; renderSheetOpts(); });
       opts.appendChild(btn);
     });
     if(from!=="inbox"){
       var ib=document.createElement("button");
       ib.className="sopt"; ib.dataset.b="inbox";
-      ib.innerHTML='<span class="sm"></span>보관함으로<span class="stime">나중에 다시</span>';
-      ib.addEventListener("click",function(){ moveTo("inbox"); });
+      ib.innerHTML='<span class="sm"></span>보관함으로<span class="stime">이동</span>';
+      ib.addEventListener("click",moveToInbox);
       opts.appendChild(ib);
     }
-    document.getElementById("sheetBack").classList.add("open");
   }
-  function closeSheet(){ document.getElementById("sheetBack").classList.remove("open"); sheetCtx=null; }
+  function closeSheet(){ document.getElementById("sheetBack").classList.remove("open"); sheetCtx=null; sheetSel={}; }
 
-  function moveTo(dest){
-    if(!sheetCtx) return;
-    var from=sheetCtx.from, id=sheetCtx.id, item=null;
+  function removeFromSource(from,id){
+    var item=null;
     if(from==="inbox"){
       var i=data.inbox.findIndex(function(x){return x.id===id;});
       if(i>-1) item=data.inbox.splice(i,1)[0];
+    }else if(from==="carry"){
+      var c=data.carry.findIndex(function(x){return x.id===id;});
+      if(c>-1) item=data.carry.splice(c,1)[0];
     }else{
-      var arr=day(cursor).tasks[from];
+      var arr=day(cursor).tasks[from]||[];
       var j=arr.findIndex(function(x){return x.id===id;});
       if(j>-1) item=arr.splice(j,1)[0];
     }
+    return item;
+  }
+  function applyPlacement(){
+    if(!sheetCtx) return;
+    var sel=Object.keys(sheetSel).filter(function(k){return sheetSel[k];});
+    if(!sel.length){ closeSheet(); return; }
+    var item=removeFromSource(sheetCtx.from,sheetCtx.id);
     if(!item){ closeSheet(); return; }
-    if(dest==="inbox"){
-      data.inbox.push({id:item.id,txt:item.txt});
-    }else{
-      if(typeof item.done==="undefined") item.done=false;
-      day(cursor).tasks[dest].push(item);
-    }
+    sel.forEach(function(bid){
+      if(activeCount(day(cursor).tasks[bid])>=BLOCK_LIMIT) return;
+      day(cursor).tasks[bid].push({id:uid(),txt:item.txt,status:item.status||"todo"});
+    });
+    save(); closeSheet(); render();
+  }
+  function moveToInbox(){
+    if(!sheetCtx) return;
+    var item=removeFromSource(sheetCtx.from,sheetCtx.id);
+    if(item) data.inbox.push({id:item.id||uid(),txt:item.txt});
     save(); closeSheet(); render();
   }
 
@@ -766,6 +951,7 @@
   document.getElementById("todayBtn").addEventListener("click",function(){ cursor=keyOf(new Date()); render(); });
   function shift(n){ var d=dateFromKey(cursor); d.setDate(d.getDate()+n); cursor=keyOf(d); render(); }
 
+  document.getElementById("sheetApply").addEventListener("click",applyPlacement);
   document.getElementById("sheetCancel").addEventListener("click",closeSheet);
   document.getElementById("sheetBack").addEventListener("click",function(e){ if(e.target===this) closeSheet(); });
 
@@ -787,6 +973,7 @@
     setSwitch("swOpacity", (cfg.opacity||1) < 1);
     setSwitch("swAutoStart", !!cfg.autoStart);
     setSwitch("swMoodScale", moodMode()==="scale");
+    setSwitch("swUrgent", !!(data.settings&&data.settings.urgentOn));
     document.getElementById("dataDirLabel").textContent=cfg.dataDir||"";
   }
   function setSwitch(id,on){ document.getElementById(id).classList.toggle("on",!!on); }
@@ -821,6 +1008,11 @@
     if(!data.settings) data.settings={};
     data.settings.moodMode=(moodMode()==="scale")?"word":"scale";
     save(); applyConfigToUI(); renderState(); renderStrip();
+  });
+  document.getElementById("swUrgent").addEventListener("click",function(){
+    if(!data.settings) data.settings={};
+    data.settings.urgentOn=!data.settings.urgentOn;
+    save(); applyConfigToUI(); render();
   });
   document.getElementById("chooseFolderBtn").addEventListener("click",async function(){
     var res=await window.api.chooseFolder();
