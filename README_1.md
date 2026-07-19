@@ -79,6 +79,23 @@ last-write-wins). 여건 될 때. 그 전까진 JSON 수동 + OneDrive로 충분
 
 ---
 
+## 버전 / 릴리즈
+
+[유의적 버전(SemVer)](https://semver.org/lang/ko/)을 따른다 — `MAJOR.MINOR.PATCH`.
+- 버그 수정 → PATCH (1.0.0 → 1.0.1)
+- 기능 추가 → MINOR (1.0.0 → 1.1.0)
+- 호환 깨지는 변경 → MAJOR (1.0.0 → 2.0.0)
+
+변경 이력은 `CHANGELOG.md`에 버전별로 적는다.
+
+**새 버전 내는 법 (수동):**
+
+1. `CHANGELOG.md`의 `[Unreleased]`에 이번 변경을 정리하고, 새 버전 절로 옮긴다.
+2. `npm version patch|minor|major` — package.json 버전업 + git 태그(`vX.Y.Z`) 자동 생성.
+3. `git push --follow-tags` — 커밋과 태그를 함께 올린다.
+4. `npm run build` — `dist/`에 포터블 `.exe` 생성.
+5. GitHub → Releases → 해당 태그로 새 릴리즈 → `dist`의 `.exe` 첨부 → 발행.
+
 ## 환경
 
 - 폰: Android + Chrome
