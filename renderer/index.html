@@ -214,8 +214,9 @@
   .block-count{font-size:11.5px;color:var(--ink-faint);font-variant-numeric:tabular-nums;background:var(--paper);border:1px solid var(--line-soft);padding:3px 8px;border-radius:20px;}
   .block-count.done{color:var(--accent);border-color:var(--accent);}
   .tasks{padding:0 14px 6px;}
-  .task{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid var(--line-soft);}
-  .task:first-child{border-top:none;}
+  .taskwrap{border-top:1px solid var(--line-soft);}
+  .taskwrap:first-child{border-top:none;}
+  .task{display:flex;align-items:flex-start;gap:10px;padding:8px 0;}
   .check{width:18px;height:18px;border-radius:6px;flex:none;margin-top:1px;border:1.5px solid var(--ink-faint);background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;}
   .check svg{width:11px;height:11px;opacity:0;transform:scale(.5);transition:all .15s;}
   .task.done .check{background:var(--accent);border-color:var(--accent);}
@@ -238,6 +239,26 @@
   .task.st-dropped .st{border-color:var(--line);background:var(--paper);}
   .task.st-done .txt{color:var(--ink-faint);text-decoration:line-through;text-decoration-color:var(--line);}
   .task.st-dropped .txt{color:var(--ink-faint);text-decoration:line-through;text-decoration-color:var(--line);font-style:italic;opacity:.7;}
+
+  /* ── Subtasks (하위 업무) ── */
+  .subtog{flex:none;border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);font-size:11px;line-height:1;cursor:pointer;padding:4px 6px;border-radius:7px;min-width:24px;font-variant-numeric:tabular-nums;transition:border-color .15s,color .15s;}
+  .subtog:hover{border-color:var(--ink-faint);color:var(--ink);}
+  .subs{padding:2px 0 8px 28px;display:flex;flex-direction:column;gap:5px;}
+  .sub{display:flex;align-items:flex-start;gap:8px;}
+  .subchk{width:15px;height:15px;border-radius:5px;flex:none;margin-top:1px;border:1.5px solid var(--ink-faint);background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:all .15s;}
+  .subchk svg{width:9px;height:9px;opacity:0;transition:opacity .15s;}
+  .sub.done .subchk{background:var(--accent);border-color:var(--accent);}
+  .sub.done .subchk svg{opacity:1;}
+  .subtxt{flex:1;font-size:12.5px;color:var(--ink);word-break:break-word;cursor:text;padding-top:1px;}
+  .subtxt:focus{outline:none;}
+  .sub.done .subtxt{color:var(--ink-faint);text-decoration:line-through;text-decoration-color:var(--line);}
+  .sub .del{flex:none;border:none;background:none;color:var(--ink-faint);font-size:14px;line-height:1;cursor:pointer;padding:0 2px;opacity:.5;transition:opacity .15s,color .15s;}
+  .sub .del:hover{opacity:1;color:var(--break);}
+  .subadd{display:flex;gap:6px;margin-top:2px;}
+  .subadd input{flex:1;border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 8px;font-size:12px;color:var(--ink);font-family:inherit;}
+  .subadd input::placeholder{color:var(--ink-faint);}
+  .subadd input:focus{outline:none;border-color:var(--accent);}
+  .subadd button{flex:none;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:0 10px;font-size:14px;cursor:pointer;font-family:inherit;line-height:1;}
 
   /* ── History ── */
   .history{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 14px 14px;}
@@ -458,6 +479,7 @@
   function visibleBlocks(){ return (data.settings&&data.settings.urgentOn?[URGENT]:[]).concat(BLOCKS); }
   function activeCount(arr){ return (arr||[]).filter(function(t){return t.status==="todo"||t.status==="doing";}).length; }
   function blockFull(bid){ return activeCount(day(cursor).tasks[bid])>=BLOCK_LIMIT; }
+  function cloneSubs(subs){ return (subs||[]).map(function(s){return {id:uid(),txt:s.txt,done:!!s.done};}); }
   var STATES={good:"해냄",joy:"즐거움",soso:"그럭저럭",low:"가라앉음",break:"무너짐"};
   var STATE_COLORS={good:"var(--good)",joy:"var(--joy)",soso:"#cbb26a",low:"var(--low)",break:"var(--break)"};
   var STATE_TO_SCORE={good:5,joy:4,soso:3,low:2,break:1};
@@ -507,6 +529,7 @@
           (rec.tasks[bid]||[]).forEach(function(t){
             if(!t.status) t.status = t.done ? "done" : "todo";
             if("done" in t) delete t.done;
+            if(!t.subs) t.subs=[];
           });
         });
       }
@@ -514,6 +537,7 @@
     d.carry.forEach(function(t){
       if(!t.status) t.status = t.done ? "done" : "todo";
       if("done" in t) delete t.done;
+      if(!t.subs) t.subs=[];
     });
     return d;
   }
@@ -566,7 +590,7 @@
           var arr=d.tasks[bid]||[], keep=[];
           arr.forEach(function(t){
             var s=t.status||"todo";
-            if(s==="todo"||s==="doing"){ data.carry.push({id:t.id,txt:t.txt,status:s,from:k,fromBlock:bid}); moved++; }
+            if(s==="todo"||s==="doing"){ data.carry.push({id:t.id,txt:t.txt,status:s,from:k,fromBlock:bid,subs:t.subs||[]}); moved++; }
             else keep.push(t);
           });
           d.tasks[bid]=keep;
@@ -750,7 +774,7 @@
       function add(){
         var v=inp.value.trim(); if(!v) return;
         if(activeCount(day(cursor).tasks[b.id])>=BLOCK_LIMIT){ toast("이 블럭은 "+BLOCK_LIMIT+"개까지예요"); return; }
-        day(cursor).tasks[b.id].push({id:uid(),txt:v,status:"todo"});
+        day(cursor).tasks[b.id].push({id:uid(),txt:v,status:"todo",subs:[],open:false});
         save(); inp.value=""; renderBlocks(); renderSummary();
         document.querySelectorAll(".block").forEach(function(bl){ if(bl.dataset.b===b.id) bl.querySelector("input").focus(); });
       }
@@ -765,12 +789,18 @@
   }
 
   function taskNode(bid,t){
+    if(!t.subs) t.subs=[];
     var st=t.status||"todo";
+    var wrap=document.createElement("div");
+    wrap.className="taskwrap"; wrap.dataset.tid=t.id;
     var node=document.createElement("div");
     node.className="task st-"+st;
+    var subDone=t.subs.filter(function(s){return s.done;}).length;
+    var toggleLabel=t.subs.length?((t.open?"▾ ":"▸ ")+subDone+"/"+t.subs.length):"＋";
     node.innerHTML=
       '<button class="st" title="상태: '+STATUS_LABEL[st]+' (클릭해 변경)">'+statusIcon(st)+'</button>'+
       '<div class="txt" contenteditable="true" spellcheck="false"></div>'+
+      '<button class="subtog" title="하위 업무">'+toggleLabel+'</button>'+
       '<button class="move" aria-label="옮기기">⇄</button>'+
       '<button class="del" aria-label="삭제">×</button>';
     node.querySelector(".txt").textContent=t.txt;
@@ -783,9 +813,54 @@
       t.txt=v; save(); renderSummary();
     });
     txt.addEventListener("keydown",function(e){ if(e.key==="Enter"){e.preventDefault();txt.blur();} });
+    node.querySelector(".subtog").addEventListener("click",function(){ t.open=!t.open; save(); renderBlocks(); });
     node.querySelector(".move").addEventListener("click",function(){ openSheet(bid,t.id,t.txt); });
     node.querySelector(".del").addEventListener("click",function(){ removeTask(bid,t.id); });
-    return node;
+    wrap.appendChild(node);
+    if(t.open) wrap.appendChild(subsNode(bid,t));
+    return wrap;
+  }
+
+  function subsNode(bid,t){
+    var box=document.createElement("div"); box.className="subs";
+    t.subs.forEach(function(s){
+      var row=document.createElement("div"); row.className="sub"+(s.done?" done":"");
+      row.innerHTML=
+        '<button class="subchk" role="checkbox" aria-checked="'+(!!s.done)+'">'+
+          '<svg viewBox="0 0 12 12" fill="none"><path d="M2 6.2l2.6 2.6L10 3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'+
+        '</button>'+
+        '<div class="subtxt" contenteditable="true" spellcheck="false"></div>'+
+        '<button class="del" aria-label="삭제">×</button>';
+      row.querySelector(".subtxt").textContent=s.txt;
+      row.querySelector(".subchk").addEventListener("click",function(){ s.done=!s.done; save(); renderBlocks(); });
+      var stx=row.querySelector(".subtxt");
+      stx.addEventListener("blur",function(){
+        var v=stx.textContent.trim();
+        if(!v){ removeSub(t,s.id); return; }
+        s.txt=v; save();
+      });
+      stx.addEventListener("keydown",function(e){ if(e.key==="Enter"){e.preventDefault();stx.blur();} });
+      row.querySelector(".del").addEventListener("click",function(){ removeSub(t,s.id); });
+      box.appendChild(row);
+    });
+    var add=document.createElement("div"); add.className="subadd";
+    add.innerHTML='<input type="text" placeholder="하위 업무 추가" aria-label="하위 업무 추가"><button>+</button>';
+    var inp=add.querySelector("input"), btn=add.querySelector("button");
+    function addSub(){
+      var v=inp.value.trim(); if(!v) return;
+      t.subs.push({id:uid(),txt:v,done:false}); save(); renderBlocks();
+      var w=document.querySelector('.taskwrap[data-tid="'+t.id+'"] .subadd input'); if(w) w.focus();
+    }
+    btn.addEventListener("click",addSub);
+    inp.addEventListener("keydown",function(e){ if(e.key==="Enter") addSub(); });
+    box.appendChild(add);
+    return box;
+  }
+
+  function removeSub(t,sid){
+    var i=t.subs.findIndex(function(x){return x.id===sid;});
+    if(i>-1) t.subs.splice(i,1);
+    save(); renderBlocks();
   }
 
   function removeTask(bid,id){
@@ -863,7 +938,7 @@
     if(!item){ closeSheet(); return; }
     sel.forEach(function(bid){
       if(activeCount(day(cursor).tasks[bid])>=BLOCK_LIMIT) return;
-      day(cursor).tasks[bid].push({id:uid(),txt:item.txt,status:item.status||"todo"});
+      day(cursor).tasks[bid].push({id:uid(),txt:item.txt,status:item.status||"todo",subs:cloneSubs(item.subs),open:false});
     });
     save(); closeSheet(); render();
   }
