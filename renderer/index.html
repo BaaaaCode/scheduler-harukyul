@@ -344,6 +344,23 @@
   .setbtn.ghost{background:#fff;color:var(--accent);}
   .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:12.5px;padding:9px 16px;border-radius:20px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:80;}
   .toast.show{opacity:.95;}
+
+  /* ── Stats ── */
+  .statsec{margin-bottom:16px;}
+  .statlbl{font-size:12px;color:var(--ink-faint);letter-spacing:.4px;text-transform:uppercase;margin-bottom:8px;}
+  .statfoot{font-size:11.5px;color:var(--ink-soft);margin-top:6px;text-align:right;}
+  .spark{width:100%;height:auto;display:block;background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;}
+  .statgrid{display:flex;flex-wrap:wrap;gap:8px;}
+  .statcell{flex:1 1 28%;min-width:70px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 6px;text-align:center;}
+  .statnum{font-size:17px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .statcap{font-size:10.5px;color:var(--ink-faint);margin-top:2px;}
+  .catlist{display:flex;flex-direction:column;gap:6px;}
+  .catrow{display:flex;align-items:center;gap:8px;}
+  .catnm{flex:none;width:86px;font-size:12px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .catbar{flex:1;height:8px;background:var(--paper);border:1px solid var(--line-soft);border-radius:5px;overflow:hidden;}
+  .catbarfill{display:block;height:100%;background:var(--accent);border-radius:5px;}
+  .catn{flex:none;font-size:11.5px;color:var(--ink-soft);font-variant-numeric:tabular-nums;min-width:16px;text-align:right;}
+  .stat-empty{font-size:12.5px;color:var(--ink-faint);text-align:center;padding:8px 0;}
 </style>
 </head>
 <body>
@@ -351,6 +368,7 @@
   <div class="titlebar">
     <span class="tt-name">하루결</span>
     <button class="tbtn" id="pinBtn" title="항상 위">📌</button>
+    <button class="tbtn" id="statsBtn" title="통계">📊</button>
     <button class="tbtn" id="settingsBtn" title="설정">⚙</button>
     <button class="tbtn" id="minBtn" title="최소화">─</button>
     <button class="tbtn close" id="closeBtn" title="숨기기(트레이로)">×</button>
@@ -457,6 +475,15 @@
     </div>
 
     <button class="sheet-cancel" id="settingsClose">닫기</button>
+  </div>
+</div>
+
+<div class="sheet-back" id="statsBack">
+  <div class="sheet">
+    <h3>통계 · 최근 2주</h3>
+    <div class="shsub">기억이 아니라 기록으로. 지난 14일.</div>
+    <div id="statsBody"></div>
+    <button class="sheet-cancel" id="statsClose">닫기</button>
   </div>
 </div>
 
@@ -996,6 +1023,72 @@
     }
   }
 
+  /* ── Stats (최근 2주) ── */
+  function statsRange(){
+    var today=new Date(); today.setHours(0,0,0,0); var out=[];
+    for(var i=13;i>=0;i--){ var d=new Date(today); d.setDate(today.getDate()-i); out.push(keyOf(d)); }
+    return out;
+  }
+  function statCell(v,l){ return '<div class="statcell"><div class="statnum">'+v+'</div><div class="statcap">'+l+'</div></div>'; }
+  function renderStats(){
+    var days=statsRange();
+    var pts=days.map(function(k,i){ var r=data.days[k]||{}; return {i:i,score:(typeof r.score==="number"?r.score:null)}; });
+    var have=pts.filter(function(p){return p.score!=null;});
+    var avg=have.length?(have.reduce(function(a,p){return a+p.score;},0)/have.length):null;
+    var W=300,H=110,PX=12,PT=12,PB=18;
+    function X(i){ return PX+i*((W-PX*2)/13); }
+    function Y(s){ return PT+(5-s)/4*(H-PT-PB); }
+    var grid=""; for(var g=1;g<=5;g++){ var yy=Y(g).toFixed(1); grid+='<line x1="'+PX+'" y1="'+yy+'" x2="'+(W-PX)+'" y2="'+yy+'" stroke="var(--line-soft)" stroke-width="1"/>'; }
+    var poly=have.map(function(p){return X(p.i).toFixed(1)+","+Y(p.score).toFixed(1);}).join(" ");
+    var dots=have.map(function(p){return '<circle cx="'+X(p.i).toFixed(1)+'" cy="'+Y(p.score).toFixed(1)+'" r="3.2" fill="'+SCORE_COLORS[p.score]+'"/>';}).join("");
+    var svg='<svg viewBox="0 0 '+W+' '+H+'" class="spark" preserveAspectRatio="none">'+grid+
+      (poly?'<polyline points="'+poly+'" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>':'')+dots+'</svg>';
+    var emoText=avg!=null?("평균 "+avg.toFixed(1)+" · 기록 "+have.length+"일"):"기록된 기분이 없어요";
+
+    var counts={todo:0,doing:0,done:0,dropped:0};
+    var subTotal=0,subDone=0,tasksWithSub=0,taskTotal=0,cats={};
+    days.forEach(function(k){
+      var r=data.days[k]; if(!r||!r.tasks) return;
+      ALL_BLOCK_IDS.forEach(function(bid){
+        (r.tasks[bid]||[]).forEach(function(t){
+          taskTotal++;
+          var stt=t.status||"todo"; counts[stt]=(counts[stt]||0)+1;
+          var subs=t.subs||[];
+          if(subs.length) tasksWithSub++;
+          subTotal+=subs.length; subDone+=subs.filter(function(s){return s.done;}).length;
+          var m=(t.txt||"").match(/\[([^\]]+)\]/g);
+          if(m){ m.forEach(function(tag){ var c=tag.slice(1,-1).trim(); if(c) cats[c]=(cats[c]||0)+1; }); }
+          else { cats["(분류 없음)"]=(cats["(분류 없음)"]||0)+1; }
+        });
+      });
+    });
+    var denom=taskTotal-counts.dropped;
+    var rate=denom>0?Math.round(counts.done/denom*100):0;
+    var catArr=Object.keys(cats).map(function(c){return {c:c,n:cats[c]};}).sort(function(a,b){return b.n-a.n;});
+    var catMax=catArr.length?catArr[0].n:0;
+    var catHTML=catArr.length?catArr.map(function(x){
+      var pct=catMax?Math.round(x.n/catMax*100):0;
+      return '<div class="catrow"><span class="catnm"></span><span class="catbar"><span class="catbarfill" style="width:'+pct+'%"></span></span><span class="catn">'+x.n+'</span></div>';
+    }).join(""):'<div class="stat-empty">기록된 작업이 없어요</div>';
+
+    var body=
+      '<div class="statsec"><div class="statlbl">감정 추세</div>'+svg+'<div class="statfoot">'+emoText+'</div></div>'+
+      '<div class="statsec"><div class="statlbl">작업 활동</div><div class="statgrid">'+
+        statCell(taskTotal,"전체 작업")+statCell(counts.done,"완료")+statCell(counts.doing,"진행 중")+
+        statCell(counts.todo,"시작 전")+statCell(counts.dropped,"종료")+statCell(rate+"%","완료율")+
+      '</div></div>'+
+      '<div class="statsec"><div class="statlbl">하위 업무</div><div class="statgrid">'+
+        statCell(subDone+"/"+subTotal,"완료/전체")+statCell(tasksWithSub,"하위 있는 작업")+
+        statCell(taskTotal?(subTotal/taskTotal).toFixed(1):"0","작업당 평균")+
+      '</div></div>'+
+      '<div class="statsec"><div class="statlbl">[분류]별 집계</div><div class="catlist">'+catHTML+'</div></div>';
+
+    var host=document.getElementById("statsBody");
+    host.innerHTML=body;
+    var rows=host.querySelectorAll(".catrow .catnm");
+    catArr.forEach(function(x,idx){ if(rows[idx]) rows[idx].textContent=x.c; });
+  }
+
   /* ── Events ── */
   function addInbox(){
     var inp=document.getElementById("inboxInput"); var v=inp.value.trim(); if(!v) return;
@@ -1060,6 +1153,17 @@
     document.getElementById("settingsBack").classList.remove("open");
   });
   document.getElementById("settingsBack").addEventListener("click",function(e){
+    if(e.target===this) this.classList.remove("open");
+  });
+
+  document.getElementById("statsBtn").addEventListener("click",function(){
+    renderStats();
+    document.getElementById("statsBack").classList.add("open");
+  });
+  document.getElementById("statsClose").addEventListener("click",function(){
+    document.getElementById("statsBack").classList.remove("open");
+  });
+  document.getElementById("statsBack").addEventListener("click",function(e){
     if(e.target===this) this.classList.remove("open");
   });
 
