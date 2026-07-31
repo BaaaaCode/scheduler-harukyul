@@ -1,5 +1,5 @@
 "use strict";
-const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, nativeImage } = require("electron");
+const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, nativeImage, Notification } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
@@ -251,6 +251,7 @@ if (!gotTheLock) {
     showWindow();
   });
   app.whenReady().then(() => {
+    app.setAppUserModelId("com.personal.harukyul"); // Windows 알림 표시에 필요
     createWindow();
     createTray();
   });
@@ -392,4 +393,19 @@ ipcMain.handle("app:toggleAutoStart", (e, value) => {
   app.setLoginItemSettings({ openAtLogin: !!value, path: process.execPath });
   saveConfig({ autoStart: !!value });
   return { ok: true, value: !!value };
+});
+
+ipcMain.handle("notify", (e, payload) => {
+  try {
+    if (!Notification.isSupported()) return { ok: false, reason: "unsupported" };
+    const n = new Notification({
+      title: (payload && payload.title) || "하루결",
+      body: (payload && payload.body) || ""
+    });
+    n.on("click", showWindow);
+    n.show();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
 });

@@ -339,6 +339,9 @@
   .swtch.on{background:var(--accent);}
   .swtch .knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 2px rgba(0,0,0,.2);}
   .swtch.on .knob{left:20px;}
+  .settime,.setnum{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 8px;font-size:12.5px;color:var(--ink);font-family:inherit;}
+  .setnum{width:54px;}
+  .settime:focus,.setnum:focus{outline:none;border-color:var(--accent);}
   .setbtn{flex:none;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:9px;padding:7px 13px;font-size:12.5px;cursor:pointer;font-family:inherit;transition:opacity .15s;}
   .setbtn:hover{opacity:.9;}
   .setbtn.ghost{background:#fff;color:var(--accent);}
@@ -451,6 +454,20 @@
       <button class="swtch" id="swUrgent"><span class="knob"></span></button>
     </div>
     <div class="setrow">
+      <div class="stxt2"><div class="stitle">밤 알림</div><div class="sdesc">정해진 시각에 "마무리할 시간" 알림</div></div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="time" id="nightTime" class="settime">
+        <button class="swtch" id="swNight"><span class="knob"></span></button>
+      </div>
+    </div>
+    <div class="setrow">
+      <div class="stxt2"><div class="stitle">연속 사용 알림</div><div class="sdesc">이 시간(시간) 이상 연속 사용하면 휴식 알림</div></div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="number" id="usageHours" class="setnum" min="1" max="12" step="1">
+        <button class="swtch" id="swUsage"><span class="knob"></span></button>
+      </div>
+    </div>
+    <div class="setrow">
       <div class="stxt2"><div class="stitle">항상 위</div><div class="sdesc">다른 창 위에 항상 떠 있게 합니다</div></div>
       <button class="swtch" id="swAlwaysOnTop"><span class="knob"></span></button>
     </div>
@@ -546,6 +563,10 @@
     if(!d.carry) d.carry=[];
     if(!d.settings) d.settings={};
     if(!d.settings.moodMode) d.settings.moodMode="word";
+    if(!d.settings.nightTime) d.settings.nightTime="23:00";
+    if(d.settings.nightOn===undefined) d.settings.nightOn=false;
+    if(d.settings.usageHours===undefined) d.settings.usageHours=3;
+    if(d.settings.usageOn===undefined) d.settings.usageOn=false;
     Object.keys(d.days).forEach(function(k){
       var rec=d.days[k];
       if(rec && rec.state && (rec.score===undefined||rec.score===null) && STATE_TO_SCORE[rec.state]!=null){
@@ -594,6 +615,7 @@
     rolloverIfNeeded();
     render();
     scheduleMidnight();
+    startAlarms();
   }
 
   function save(){
@@ -639,6 +661,40 @@
       render();
       scheduleMidnight();
     }, Math.max(1000, next-now));
+  }
+
+  /* ── 알림: 마무리 시각 + 연속 사용 ── */
+  var usageStart=Date.now(), usageNotified=false, lastNightKey=null;
+  function remainingCoreCount(){
+    var d=day(keyOf(new Date())), n=0;
+    visibleBlocks().forEach(function(b){ (d.tasks[b.id]||[]).forEach(function(t){ if(t.status==="todo"||t.status==="doing") n++; }); });
+    return n;
+  }
+  function notify(title,body){ if(window.api&&window.api.notify) window.api.notify({title:title,body:body}); }
+  function alarmTick(){
+    var s=data.settings||{}; var now=new Date();
+    if(s.nightOn && s.nightTime){
+      var p=s.nightTime.split(":");
+      var target=new Date(now); target.setHours(+p[0]||0,+p[1]||0,0,0);
+      var todayKey=keyOf(now);
+      if(now>=target && lastNightKey!==todayKey){
+        lastNightKey=todayKey;
+        var n=remainingCoreCount();
+        notify("하루를 마무리할 시간", n>0?("남은 핵심 "+n+"개. 슬슬 마무리해요."):"오늘 수고했어요. 이제 쉬어도 돼요.");
+      }
+    }
+    if(s.usageOn && !document.hidden){
+      var hrs=(Date.now()-usageStart)/3600000;
+      if(hrs>=(s.usageHours||3) && !usageNotified){
+        usageNotified=true;
+        notify("오래 쓰고 있어요", (Math.round(hrs*10)/10)+"시간째 사용 중이에요. 잠깐 쉬어가요.");
+      }
+    }
+  }
+  function startAlarms(){
+    document.addEventListener("visibilitychange",function(){ if(!document.hidden){ usageStart=Date.now(); usageNotified=false; } });
+    setInterval(alarmTick, 30000);
+    alarmTick();
   }
 
   /* ── Render ── */
@@ -1142,6 +1198,10 @@
     setSwitch("swAutoStart", !!cfg.autoStart);
     setSwitch("swMoodScale", moodMode()==="scale");
     setSwitch("swUrgent", !!(data.settings&&data.settings.urgentOn));
+    setSwitch("swNight", !!(data.settings&&data.settings.nightOn));
+    setSwitch("swUsage", !!(data.settings&&data.settings.usageOn));
+    document.getElementById("nightTime").value=(data.settings&&data.settings.nightTime)||"23:00";
+    document.getElementById("usageHours").value=(data.settings&&data.settings.usageHours)||3;
     document.getElementById("dataDirLabel").textContent=cfg.dataDir||"";
   }
   function setSwitch(id,on){ document.getElementById(id).classList.toggle("on",!!on); }
@@ -1192,6 +1252,29 @@
     if(!data.settings) data.settings={};
     data.settings.urgentOn=!data.settings.urgentOn;
     save(); applyConfigToUI(); render();
+  });
+  document.getElementById("swNight").addEventListener("click",function(){
+    if(!data.settings) data.settings={};
+    data.settings.nightOn=!data.settings.nightOn;
+    lastNightKey=null;
+    save(); applyConfigToUI();
+  });
+  document.getElementById("nightTime").addEventListener("change",function(){
+    if(!data.settings) data.settings={};
+    data.settings.nightTime=this.value||"23:00"; lastNightKey=null;
+    save();
+  });
+  document.getElementById("swUsage").addEventListener("click",function(){
+    if(!data.settings) data.settings={};
+    data.settings.usageOn=!data.settings.usageOn;
+    usageStart=Date.now(); usageNotified=false;
+    save(); applyConfigToUI();
+  });
+  document.getElementById("usageHours").addEventListener("change",function(){
+    if(!data.settings) data.settings={};
+    var n=parseInt(this.value,10); if(isNaN(n)||n<1) n=1; if(n>12) n=12;
+    data.settings.usageHours=n; usageNotified=false; this.value=n;
+    save();
   });
   document.getElementById("chooseFolderBtn").addEventListener("click",async function(){
     var res=await window.api.chooseFolder();

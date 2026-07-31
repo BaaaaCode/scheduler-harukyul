@@ -16,5 +16,6 @@ contextBridge.exposeInMainWorld("api", {
   closeToTray: () => ipcRenderer.invoke("window:close"),
   toggleAlwaysOnTop: (v) => ipcRenderer.invoke("window:toggleAlwaysOnTop", v),
   setOpacity: (v) => ipcRenderer.invoke("window:setOpacity", v),
-  toggleAutoStart: (v) => ipcRenderer.invoke("app:toggleAutoStart", v)
+  toggleAutoStart: (v) => ipcRenderer.invoke("app:toggleAutoStart", v),
+  notify: (payload) => ipcRenderer.invoke("notify", payload)
 });
