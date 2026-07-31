@@ -47,6 +47,7 @@
     border-radius:14px;
     box-shadow:0 14px 34px rgba(43,42,40,.28), 0 2px 6px rgba(43,42,40,.18);
     overflow:hidden;
+    position:relative;
   }
 
   /* ── Titlebar ── */
@@ -345,6 +346,39 @@
   .setbtn{flex:none;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:9px;padding:7px 13px;font-size:12.5px;cursor:pointer;font-family:inherit;transition:opacity .15s;}
   .setbtn:hover{opacity:.9;}
   .setbtn.ghost{background:#fff;color:var(--accent);}
+  /* ── Companion (동반자) ── */
+  .companion{position:absolute;right:10px;bottom:8px;width:66px;height:66px;z-index:30;cursor:pointer;-webkit-user-select:none;user-select:none;}
+  .companion.hidden{display:none;}
+  .comp-svg{width:100%;height:100%;overflow:visible;display:block;transform-origin:50% 88%;animation:comp-breathe 3.2s ease-in-out infinite;}
+  @keyframes comp-breathe{0%,100%{transform:translateY(0) scaleY(1);}50%{transform:translateY(-1.5px) scaleY(1.02);}}
+  .c-tail{transform-box:fill-box;transform-origin:18% 82%;animation:comp-wag 1.4s ease-in-out infinite;}
+  @keyframes comp-wag{0%,100%{transform:rotate(-8deg);}50%{transform:rotate(16deg);}}
+  .c-eyes{transform-box:fill-box;transform-origin:center;animation:comp-blink 4.8s infinite;}
+  @keyframes comp-blink{0%,93%,100%{transform:scaleY(1);}96%{transform:scaleY(0.1);}}
+  .c-zzz,.c-heart,.c-spark,.c-tongue{opacity:0;}
+  .companion.state-sleep .comp-svg{animation-duration:4.6s;}
+  .companion.state-sleep .c-eyes{animation:none;transform:scaleY(0.12);}
+  .companion.state-sleep .c-tail{animation-duration:2.8s;}
+  .companion.state-sleep .c-zzz{animation:comp-zzz 3s ease-in-out infinite;}
+  @keyframes comp-zzz{0%{opacity:0;transform:translate(0,0) scale(.7);}30%{opacity:.9;}100%{opacity:0;transform:translate(5px,-12px) scale(1.1);}}
+  .companion.state-happy .comp-svg{animation:comp-bounce .5s ease infinite;}
+  @keyframes comp-bounce{0%,100%{transform:translateY(0);}30%{transform:translateY(-8px);}60%{transform:translateY(0);}}
+  .companion.state-happy .c-tail{animation-duration:.4s;}
+  .companion.state-happy .c-tongue{opacity:1;}
+  .companion.state-happy .c-spark{opacity:1;animation:comp-spark .6s ease infinite;}
+  @keyframes comp-spark{0%,100%{opacity:.2;transform:scale(.6) rotate(0);}50%{opacity:1;transform:scale(1.1) rotate(20deg);}}
+  .companion.state-cheer .c-tail{animation-duration:.5s;}
+  .companion.state-cheer .c-heart{animation:comp-heart 1.6s ease-in-out infinite;}
+  @keyframes comp-heart{0%{opacity:0;transform:translateY(0) scale(.7);}30%{opacity:1;}100%{opacity:0;transform:translateY(-12px) scale(1);}}
+  .companion.state-comfort{transform:rotate(-3deg);}
+  .companion.state-comfort .comp-svg{animation-duration:4s;}
+  .companion.state-comfort .c-tail{animation-duration:2.4s;}
+  .companion.state-comfort .c-heart{animation:comp-heart 2.6s ease-in-out infinite;}
+  .comp-bubble{position:absolute;right:66px;bottom:22px;max-width:150px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:7px 10px;font-size:11.5px;color:var(--ink);box-shadow:0 4px 12px rgba(43,42,40,.16);opacity:0;transform:translateX(6px);transition:opacity .2s,transform .2s;pointer-events:none;line-height:1.4;}
+  .comp-bubble.show{opacity:1;transform:none;}
+  .comp-bubble:after{content:"";position:absolute;right:-6px;bottom:12px;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:6px solid var(--card);}
+  @media (prefers-reduced-motion:reduce){ .comp-svg,.c-tail,.c-eyes,.c-zzz,.c-heart,.c-spark{animation:none!important;} }
+
   .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:12.5px;padding:9px 16px;border-radius:20px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:80;}
   .toast.show{opacity:.95;}
 
@@ -428,6 +462,32 @@
 
     <p class="note">보관함에 일단 다 적어두고, 할 수 있는 만큼만 블록으로 옮기세요.<br>옮기지 못한 게 남아 있어도 괜찮아요. 그게 정상이에요.</p>
   </div>
+
+  <div class="companion state-wait" id="companion" title="쓰다듬기">
+    <div class="comp-bubble" id="compBubble"></div>
+    <svg class="comp-svg" viewBox="0 0 100 100" aria-hidden="true">
+      <g class="c-tail"><ellipse cx="76" cy="64" rx="6" ry="12" fill="#c88a3d" transform="rotate(28 76 64)"/></g>
+      <ellipse cx="50" cy="74" rx="23" ry="19" fill="#e3a55b"/>
+      <ellipse cx="41" cy="88" rx="6" ry="7" fill="#edc07f"/>
+      <ellipse cx="59" cy="88" rx="6" ry="7" fill="#edc07f"/>
+      <g class="c-head">
+        <ellipse class="c-ear" cx="31" cy="46" rx="8" ry="15" fill="#c88a3d" transform="rotate(12 31 46)"/>
+        <ellipse class="c-ear" cx="69" cy="46" rx="8" ry="15" fill="#c88a3d" transform="rotate(-12 69 46)"/>
+        <circle cx="50" cy="40" r="20" fill="#e3a55b"/>
+        <ellipse cx="50" cy="49" rx="12" ry="9" fill="#f3d9ad"/>
+        <g class="c-eyes">
+          <circle cx="43" cy="37" r="2.6" fill="#3b2d22"/>
+          <circle cx="57" cy="37" r="2.6" fill="#3b2d22"/>
+        </g>
+        <ellipse cx="50" cy="45" rx="3.4" ry="2.6" fill="#4b3a2c"/>
+        <path d="M50 47 q-4 5 -8 3 M50 47 q4 5 8 3" stroke="#4b3a2c" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+        <path class="c-tongue" d="M46 52 q4 8 8 0 z" fill="#e88b8b"/>
+      </g>
+      <text class="c-zzz" x="70" y="22" font-size="12" fill="#a39e95" font-family="sans-serif">z</text>
+      <path class="c-heart" d="M50 6 c-3 -5 -11 -1 -11 5 c0 5 8 9 11 12 c3 -3 11 -7 11 -12 c0 -6 -8 -10 -11 -5 z" fill="#d98a7a"/>
+      <g class="c-spark" fill="#e0b23a"><path d="M74 14 l1.6 4 4 1.6 -4 1.6 -1.6 4 -1.6 -4 -4 -1.6 4 -1.6 z"/></g>
+    </svg>
+  </div>
 </div>
 
 <div class="sheet-back" id="sheetBack">
@@ -466,6 +526,14 @@
         <input type="number" id="usageHours" class="setnum" min="1" max="12" step="1">
         <button class="swtch" id="swUsage"><span class="knob"></span></button>
       </div>
+    </div>
+    <div class="setrow">
+      <div class="stxt2"><div class="stitle">동반자</div><div class="sdesc">창 구석의 작은 친구(리트리버)</div></div>
+      <button class="swtch" id="swCompanion"><span class="knob"></span></button>
+    </div>
+    <div class="setrow">
+      <div class="stxt2"><div class="stitle">동반자 한마디</div><div class="sdesc">가끔 다정한 말풍선을 띄웁니다</div></div>
+      <button class="swtch" id="swCompanionTalk"><span class="knob"></span></button>
     </div>
     <div class="setrow">
       <div class="stxt2"><div class="stitle">항상 위</div><div class="sdesc">다른 창 위에 항상 떠 있게 합니다</div></div>
@@ -567,6 +635,8 @@
     if(d.settings.nightOn===undefined) d.settings.nightOn=false;
     if(d.settings.usageHours===undefined) d.settings.usageHours=3;
     if(d.settings.usageOn===undefined) d.settings.usageOn=false;
+    if(d.settings.companionOn===undefined) d.settings.companionOn=true;
+    if(d.settings.companionTalk===undefined) d.settings.companionTalk=true;
     Object.keys(d.days).forEach(function(k){
       var rec=d.days[k];
       if(rec && rec.state && (rec.score===undefined||rec.score===null) && STATE_TO_SCORE[rec.state]!=null){
@@ -695,6 +765,54 @@
     document.addEventListener("visibilitychange",function(){ if(!document.hidden){ usageStart=Date.now(); usageNotified=false; } });
     setInterval(alarmTick, 30000);
     alarmTick();
+  }
+
+  /* ── 동반자(리트리버) ── */
+  var COMP_MSG={
+    sleep:["할 일 없을 땐 좀 쉬어요.","평화롭네요.","한숨 돌려요."],
+    wait:["천천히 해도 돼요.","무리하지 말고요.","할 수 있는 만큼만."],
+    cheer:["오늘 좋은 날이네요!","기분 좋아 보여요.","같이 신나요!"],
+    comfort:["오늘은 무리하지 말아요.","여기 있을게요.","쉬어도 괜찮아요.","잘 버텼어요."],
+    happy:["하나 해냈다!","좋아요, 하나 끝!","잘하고 있어요!"],
+    pet:["헤헤.","좋아요.","고마워요."]
+  };
+  var compState="wait", compHappyTimer=null;
+  function pickMsg(s){ var a=COMP_MSG[s]||COMP_MSG.wait; return a[Math.floor(Math.random()*a.length)]; }
+  function showBubble(text){
+    if(data.settings&&data.settings.companionTalk===false) return;
+    var b=document.getElementById("compBubble"); if(!b) return;
+    b.textContent=text; b.classList.add("show");
+    clearTimeout(b._h); b._h=setTimeout(function(){ b.classList.remove("show"); }, 3200);
+  }
+  function companionState(){
+    var d=day(keyOf(new Date())), st=d.state;
+    if(st==="low"||st==="break") return "comfort";
+    if(st==="good"||st==="joy") return "cheer";
+    return remainingCoreCount()===0 ? "sleep" : "wait";
+  }
+  function setCompanionState(s){
+    var el=document.getElementById("companion"); if(!el) return;
+    el.classList.remove("state-sleep","state-wait","state-cheer","state-comfort","state-happy");
+    el.classList.add("state-"+s); compState=s;
+  }
+  function renderCompanion(){
+    var el=document.getElementById("companion"); if(!el) return;
+    var on=!(data.settings&&data.settings.companionOn===false);
+    el.classList.toggle("hidden", !on);
+    if(!on || compHappyTimer) return;
+    setCompanionState(companionState());
+  }
+  function companionHappy(){
+    if(data.settings&&data.settings.companionOn===false) return;
+    setCompanionState("happy"); showBubble(pickMsg("happy"));
+    clearTimeout(compHappyTimer);
+    compHappyTimer=setTimeout(function(){ compHappyTimer=null; renderCompanion(); }, 2200);
+  }
+  function companionMoodReact(){
+    renderCompanion();
+    var st=day(cursor).state;
+    if(st==="low"||st==="break") showBubble(pickMsg("comfort"));
+    else if(st==="good"||st==="joy") showBubble(pickMsg("cheer"));
   }
 
   /* ── Render ── */
@@ -869,6 +987,7 @@
       }
       wrap.appendChild(el);
     });
+    renderCompanion();
   }
 
   function taskNode(bid,t){
@@ -887,7 +1006,7 @@
       '<button class="move" aria-label="옮기기">⇄</button>'+
       '<button class="del" aria-label="삭제">×</button>';
     node.querySelector(".txt").textContent=t.txt;
-    function cycle(){ t.status=cycleStatus(t.status||"todo"); save(); renderBlocks(); renderSummary(); renderStrip(); }
+    function cycle(){ var prev=t.status||"todo"; t.status=cycleStatus(prev); save(); renderBlocks(); renderSummary(); renderStrip(); if(t.status==="done"&&prev!=="done") companionHappy(); }
     node.querySelector(".st").addEventListener("click",cycle);
     var txt=node.querySelector(".txt");
     txt.addEventListener("blur",function(){
@@ -1160,14 +1279,14 @@
       var v=+sc.dataset.s;
       if(d.score===v){ d.score=null; d.state=null; }
       else{ d.score=v; d.state=SCORE_TO_STATE[v]; }
-      save(); renderState(); renderStrip(); return;
+      save(); renderState(); renderStrip(); companionMoodReact(); return;
     }
     var el=e.target.closest(".state");
     if(el){
       var k=el.dataset.k;
       if(d.state===k){ d.state=null; d.score=null; }
       else{ d.state=k; d.score=STATE_TO_SCORE[k]; }
-      save(); renderState(); renderStrip();
+      save(); renderState(); renderStrip(); companionMoodReact();
     }
   });
   document.getElementById("prevBtn").addEventListener("click",function(){ shift(-1); });
@@ -1202,7 +1321,10 @@
     setSwitch("swUsage", !!(data.settings&&data.settings.usageOn));
     document.getElementById("nightTime").value=(data.settings&&data.settings.nightTime)||"23:00";
     document.getElementById("usageHours").value=(data.settings&&data.settings.usageHours)||3;
+    setSwitch("swCompanion", !(data.settings&&data.settings.companionOn===false));
+    setSwitch("swCompanionTalk", !(data.settings&&data.settings.companionTalk===false));
     document.getElementById("dataDirLabel").textContent=cfg.dataDir||"";
+    renderCompanion();
   }
   function setSwitch(id,on){ document.getElementById(id).classList.toggle("on",!!on); }
 
@@ -1275,6 +1397,20 @@
     var n=parseInt(this.value,10); if(isNaN(n)||n<1) n=1; if(n>12) n=12;
     data.settings.usageHours=n; usageNotified=false; this.value=n;
     save();
+  });
+  document.getElementById("swCompanion").addEventListener("click",function(){
+    if(!data.settings) data.settings={};
+    data.settings.companionOn=!(data.settings.companionOn!==false);
+    save(); applyConfigToUI(); renderCompanion();
+  });
+  document.getElementById("swCompanionTalk").addEventListener("click",function(){
+    if(!data.settings) data.settings={};
+    data.settings.companionTalk=!(data.settings.companionTalk!==false);
+    save(); applyConfigToUI();
+  });
+  document.getElementById("companion").addEventListener("click",function(){
+    if(data.settings&&data.settings.companionOn===false) return;
+    showBubble(pickMsg(compState==="comfort"?"comfort":"pet"));
   });
   document.getElementById("chooseFolderBtn").addEventListener("click",async function(){
     var res=await window.api.chooseFolder();
