@@ -7,6 +7,8 @@ const os = require("os");
 const CONFIG_PATH = path.join(app.getPath("userData"), "config.json");
 const DEFAULT_DATA_DIR = app.getPath("userData");
 const DATA_FILENAME = "harukyul-data.json";
+const BACKUP_DIRNAME = "harukyul-backups";
+const BACKUP_KEEP_DAYS = 14;
 const ONEDRIVE_HINT = path.join(os.homedir(), "OneDrive");
 
 let win = null;
@@ -55,6 +57,64 @@ function atomicWrite(filePath, contents) {
   const tmp = filePath + ".tmp-" + Date.now();
   fs.writeFileSync(tmp, contents, "utf8");
   fs.renameSync(tmp, filePath);
+}
+
+/* ── Rolling daily backups (데이터 유실 방지) ── */
+function backupDir() {
+  return path.join(getConfig().dataDir, BACKUP_DIRNAME);
+}
+function todayStamp() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function writeDailyBackup(contents) {
+  try {
+    const dir = backupDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const f = path.join(dir, "harukyul-" + todayStamp() + ".json");
+    const tmp = f + ".tmp-" + Date.now();
+    fs.writeFileSync(tmp, contents, "utf8");
+    fs.renameSync(tmp, f);
+    pruneBackups();
+  } catch (e) {}
+}
+function pruneBackups() {
+  try {
+    const dir = backupDir();
+    const files = fs
+      .readdirSync(dir)
+      .filter((n) => /^harukyul-\d{4}-\d{2}-\d{2}\.json$/.test(n))
+      .sort();
+    while (files.length > BACKUP_KEEP_DAYS) {
+      const old = files.shift();
+      try { fs.unlinkSync(path.join(dir, old)); } catch (e) {}
+    }
+  } catch (e) {}
+}
+function latestGoodBackup() {
+  try {
+    const dir = backupDir();
+    if (!fs.existsSync(dir)) return null;
+    const files = fs
+      .readdirSync(dir)
+      .filter((n) => /^harukyul-\d{4}-\d{2}-\d{2}\.json$/.test(n))
+      .sort();
+    for (let i = files.length - 1; i >= 0; i--) {
+      try {
+        const raw = fs.readFileSync(path.join(dir, files[i]), "utf8");
+        JSON.parse(raw);
+        return { file: files[i], raw: raw };
+      } catch (e) {}
+    }
+  } catch (e) {}
+  return null;
+}
+
+function showWindow() {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  if (!win.isVisible()) win.show();
+  win.focus();
 }
 
 /* ── Window ── */
@@ -152,10 +212,20 @@ function createTray() {
   });
 }
 
-app.whenReady().then(() => {
-  createWindow();
-  createTray();
-});
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  // 이미 한 인스턴스가 돌고 있으면 즉시 종료 (한 기기 = 하나만).
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    // 두 번째로 실행하면 새 창을 띄우지 않고 기존 창을 앞으로.
+    showWindow();
+  });
+  app.whenReady().then(() => {
+    createWindow();
+    createTray();
+  });
+}
 
 app.on("before-quit", () => {
   isQuitting = true;
@@ -167,16 +237,32 @@ app.on("window-all-closed", () => {
 
 /* ── IPC: data ── */
 ipcMain.handle("data:load", () => {
+  const fp = dataFilePath();
+  if (!fs.existsSync(fp)) {
+    // 데이터 파일이 아예 없음 = 진짜 첫 실행. 빈 상태로 시작해도 안전.
+    return { ok: true, data: null, fresh: true };
+  }
   try {
-    return { ok: true, data: JSON.parse(fs.readFileSync(dataFilePath(), "utf8")) };
+    return { ok: true, data: JSON.parse(fs.readFileSync(fp, "utf8")) };
   } catch (e) {
-    return { ok: false, data: null };
+    // 파일은 있는데 못 읽음(잠김/손상/동기화 충돌). 원본 보존 후 최신 백업으로 복구 시도.
+    try { fs.copyFileSync(fp, fp + ".corrupt-" + Date.now()); } catch (e2) {}
+    const bak = latestGoodBackup();
+    if (bak) {
+      try {
+        return { ok: true, data: JSON.parse(bak.raw), recovered: bak.file };
+      } catch (e3) {}
+    }
+    // 못 읽고 백업도 없음: 손상본은 이미 .corrupt로 보존됨을 알림.
+    return { ok: false, error: String(e), fileExists: true };
   }
 });
 
 ipcMain.handle("data:save", (e, data) => {
   try {
-    atomicWrite(dataFilePath(), JSON.stringify(data, null, 2));
+    const contents = JSON.stringify(data, null, 2);
+    atomicWrite(dataFilePath(), contents);
+    writeDailyBackup(contents);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: String(err) };
