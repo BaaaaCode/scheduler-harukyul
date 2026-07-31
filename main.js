@@ -8,7 +8,9 @@ const CONFIG_PATH = path.join(app.getPath("userData"), "config.json");
 const DEFAULT_DATA_DIR = app.getPath("userData");
 const DATA_FILENAME = "harukyul-data.json";
 const BACKUP_DIRNAME = "harukyul-backups";
-const BACKUP_KEEP_DAYS = 14;
+const BACKUP_DAILY_DAYS = 14;    // 최근 14일: 매일 보관
+const BACKUP_WEEKLY_DAYS = 70;   // 그 이후 ~8주: 주 1개
+const BACKUP_MONTHLY_DAYS = 400; // 그 이후 ~1년: 월 1개 (넘으면 삭제)
 const ONEDRIVE_HINT = path.join(os.homedir(), "OneDrive");
 
 let win = null;
@@ -79,16 +81,43 @@ function writeDailyBackup(contents) {
   } catch (e) {}
 }
 function pruneBackups() {
+  // 계단식(GFS) 솎아내기: 최근은 매일, 오래된 건 주 1개 → 월 1개만 남김.
   try {
     const dir = backupDir();
-    const files = fs
+    const DAY = 86400000;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const items = fs
       .readdirSync(dir)
-      .filter((n) => /^harukyul-\d{4}-\d{2}-\d{2}\.json$/.test(n))
-      .sort();
-    while (files.length > BACKUP_KEEP_DAYS) {
-      const old = files.shift();
-      try { fs.unlinkSync(path.join(dir, old)); } catch (e) {}
-    }
+      .map((n) => n.match(/^harukyul-(\d{4})-(\d{2})-(\d{2})\.json$/) && n)
+      .filter(Boolean)
+      .map((n) => {
+        const m = n.match(/^harukyul-(\d{4})-(\d{2})-(\d{2})\.json$/);
+        const d = new Date(+m[1], +m[2] - 1, +m[3]); d.setHours(0, 0, 0, 0);
+        return { name: n, date: d, ageDays: Math.round((today - d) / DAY) };
+      })
+      .sort((a, b) => b.date - a.date); // 최신 먼저
+
+    const keep = new Set();
+    const seenWeek = new Set();
+    const seenMonth = new Set();
+    items.forEach((it) => {
+      if (it.ageDays < 0 || it.ageDays <= BACKUP_DAILY_DAYS) {
+        keep.add(it.name); // 미래 날짜(시계 변경) 또는 최근 14일: 매일 보관
+      } else if (it.ageDays <= BACKUP_WEEKLY_DAYS) {
+        const wk = "W" + Math.floor(it.ageDays / 7);
+        if (!seenWeek.has(wk)) { seenWeek.add(wk); keep.add(it.name); }
+      } else if (it.ageDays <= BACKUP_MONTHLY_DAYS) {
+        const mo = it.date.getFullYear() + "-" + (it.date.getMonth() + 1);
+        if (!seenMonth.has(mo)) { seenMonth.add(mo); keep.add(it.name); }
+      }
+      // BACKUP_MONTHLY_DAYS 초과 → keep 안 함 → 삭제
+    });
+
+    items.forEach((it) => {
+      if (!keep.has(it.name)) {
+        try { fs.unlinkSync(path.join(dir, it.name)); } catch (e) {}
+      }
+    });
   } catch (e) {}
 }
 function latestGoodBackup() {
