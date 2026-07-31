@@ -1,6 +1,6 @@
 {
   "name": "harukyul-desktop",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "하루결 - 개인용 데스크톱 스티커 메모 앱",
   "private": true,
   "main": "main.js",
