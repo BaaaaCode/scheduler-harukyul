@@ -404,22 +404,62 @@ ipcMain.handle("config:get", () => {
   return Object.assign({}, cfg, { dataFile: dataFilePath(), oneDriveHint: ONEDRIVE_HINT });
 });
 
+function readSummary(fp) {
+  try { return summarize(JSON.parse(fs.readFileSync(fp, "utf8"))); } catch (e) { return null; }
+}
+
 ipcMain.handle("config:chooseFolder", async () => {
   const res = await dialog.showOpenDialog(win, {
     title: "데이터 저장 폴더 선택 (예: OneDrive 폴더)",
     properties: ["openDirectory", "createDirectory"]
   });
   if (res.canceled || !res.filePaths.length) return { ok: false };
+
   const newDir = res.filePaths[0];
   const oldFile = dataFilePath();
-  saveConfig({ dataDir: newDir });
-  const newFile = dataFilePath();
-  try {
-    if (fs.existsSync(oldFile) && !fs.existsSync(newFile)) {
-      fs.copyFileSync(oldFile, newFile);
+  const newFile = path.join(newDir, DATA_FILENAME);
+  if (path.resolve(oldFile) === path.resolve(newFile)) return { ok: false, same: true };
+
+  const hasOld = fs.existsSync(oldFile);
+  const hasNew = fs.existsSync(newFile);
+
+  // 새 폴더에 이미 기록이 있으면 어느 쪽을 쓸지 물어야 한다.
+  // 묻지 않고 폴더만 바꾸면, 화면에 남아 있던 옛 기록이 다음 저장 때
+  // 새 폴더의 기록을 덮어쓴다. 기기 두 대를 같은 폴더로 쓸 때 실제로 일어난다.
+  if (hasOld && hasNew) {
+    const a = readSummary(oldFile);
+    const b = readSummary(newFile);
+    const ask = await dialog.showMessageBox(win, {
+      type: "question",
+      buttons: ["새 폴더의 기록을 쓴다", "지금 기록으로 덮어쓴다", "취소"],
+      defaultId: 0,
+      cancelId: 2,
+      title: "새 폴더에 이미 기록이 있어요",
+      message: "어느 쪽을 이어서 쓸까요?",
+      detail:
+        "새 폴더\n  " + (b ? describe(b) : "읽을 수 없음") + "\n\n" +
+        "지금 기록\n  " + (a ? describe(a) : "읽을 수 없음") + "\n\n" +
+        "덮어쓰기를 고르면 새 폴더의 기록을 먼저 따로 저장합니다."
+    });
+    if (ask.response === 2) return { ok: false, canceled: true };
+    if (ask.response === 1) {
+      try {
+        const d = new Date();
+        const stamp = todayStamp() + "_" +
+          String(d.getHours()).padStart(2, "0") + String(d.getMinutes()).padStart(2, "0");
+        fs.copyFileSync(newFile, path.join(newDir, "harukyul-replaced-" + stamp + ".json"));
+        fs.copyFileSync(oldFile, newFile);
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
     }
-  } catch (e) {}
-  return { ok: true, dataDir: newDir, dataFile: newFile };
+  } else if (hasOld && !hasNew) {
+    try { fs.mkdirSync(newDir, { recursive: true }); fs.copyFileSync(oldFile, newFile); } catch (e) {}
+  }
+
+  saveConfig({ dataDir: newDir });
+  // reload:true — 화면이 반드시 새 폴더의 파일을 다시 읽어야 한다
+  return { ok: true, dataDir: newDir, dataFile: dataFilePath(), reload: true };
 });
 
 ipcMain.handle("window:minimize", () => {

@@ -1475,10 +1475,28 @@
   });
   document.getElementById("chooseFolderBtn").addEventListener("click",async function(){
     var res=await window.api.chooseFolder();
-    if(res.ok){
-      cfg.dataDir=res.dataDir; applyConfigToUI();
-      toast("저장 폴더를 변경했어요");
+    if(res.canceled || res.same) return;
+    if(!res.ok){ if(res.error) toast("폴더를 바꾸지 못했어요"); return; }
+
+    cfg.dataDir=res.dataDir; cfg.dataFile=res.dataFile;
+
+    // 폴더만 바꾸고 화면을 그대로 두면, 남아 있던 옛 기록이 다음 저장 때
+    // 새 폴더의 파일을 덮어쓴다. 반드시 다시 읽는다.
+    if(res.reload){
+      var loaded=await window.api.loadData();
+      if(loaded.ok && loaded.data){
+        data=migrate(loaded.data);
+        if(loaded.recovered){
+          showNotice("warn","새 폴더의 파일을 읽지 못해 <code>"+esc(loaded.recovered)+"</code> 백업으로 불러왔어요.");
+        }
+      }else if(!loaded.ok && loaded.fileExists){
+        showFatal(loaded); return;
+      }
+      cursor=keyOf(new Date());
+      rolloverIfNeeded();
     }
+    applyConfigToUI(); render();
+    toast("저장 폴더를 바꿨어요");
   });
   document.getElementById("exportBtn").addEventListener("click",async function(){
     var res=await window.api.exportData();
