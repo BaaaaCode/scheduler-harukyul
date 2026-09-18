@@ -412,6 +412,7 @@
   </div>
 
   <div class="scroll">
+    <div id="notice" class="notice" hidden></div>
     <header class="app-head">
       <div class="brand">
         <h1>하루결</h1>
@@ -572,6 +573,19 @@
   </div>
 </div>
 
+<div class="fatalback" id="fatal" hidden>
+  <div class="fatal">
+    <h4>기록을 읽지 못했어요</h4>
+    <p id="fatalMsg"></p>
+    <p>원본은 그대로 두었어요. 지우지 않았습니다.</p>
+    <p>저장 폴더<br><code id="fatalDir"></code></p>
+    <div class="row">
+      <button class="btn" id="fatalOpen">폴더 위치 보기</button>
+      <button class="backbtn" id="fatalNew">빈 상태로 시작</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -667,25 +681,72 @@
   }
 
   /* ── Boot: load from local JSON file via main process; one-time legacy localStorage import ── */
-  async function boot(){
-    var loaded=await window.api.loadData();
-    if(loaded.ok && loaded.data){
-      data=migrate(loaded.data);
-    }else{
-      var legacy=null;
-      try{ var raw=localStorage.getItem(LEGACY_STORE); if(raw) legacy=JSON.parse(raw); }catch(e){}
-      data=migrate(legacy);
-      if(legacy){
-        await window.api.importFromLocalStorage(data);
-        toast("이전 데이터를 불러왔어요");
-      }
-    }
-    cfg=await window.api.getConfig();
+  /* 알림 띠 — 조용히 지나가면 안 되는 일을 화면에 남긴다 */
+  function showNotice(kind, html){
+    var el=document.getElementById("notice"); if(!el) return;
+    el.className="notice"+(kind==="warn"?" warn":"");
+    el.innerHTML='<button class="x" aria-label="닫기">×</button>'+html;
+    el.hidden=false;
+    el.querySelector(".x").onclick=function(){ el.hidden=true; };
+  }
+
+  /* 파일은 있는데 못 읽었다. 빈 화면으로 시작하면 "기록이 다 사라졌다"로 보이고,
+     그 상태로 뭐라도 저장하면 진짜로 덮어쓴다. 그래서 여기서 멈춘다. */
+  function showFatal(loaded){
+    document.getElementById("fatalMsg").textContent =
+      "저장된 파일을 읽을 수 없었고, 백업에서도 복구하지 못했어요. " + (loaded.error||"");
+    document.getElementById("fatalDir").textContent = (cfg && cfg.dataFile) || "";
+    document.getElementById("fatal").hidden=false;
+    document.getElementById("fatalOpen").onclick=function(){
+      showNotice("warn","저장 폴더 경로예요.<br><code>"+esc((cfg&&cfg.dataDir)||"")+"</code>");
+      document.getElementById("fatal").hidden=true;
+    };
+    document.getElementById("fatalNew").onclick=function(){
+      document.getElementById("fatal").hidden=true;
+      showNotice("warn","<b>빈 상태로 시작했어요.</b> 지금 뭔가를 적으면 이 내용으로 저장됩니다. "+
+                        "원래 기록을 되살리려면 저장 폴더의 <code>.corrupt</code> 파일이나 "+
+                        "<code>harukyul-backups</code> 를 확인하세요.");
+      startApp();
+    };
+  }
+
+  function startApp(){
     applyConfigToUI();
     rolloverIfNeeded();
     render();
     scheduleMidnight();
     startAlarms();
+  }
+
+  async function boot(){
+    var loaded=await window.api.loadData();
+    cfg=await window.api.getConfig();
+
+    if(loaded.ok && loaded.data){
+      data=migrate(loaded.data);
+      if(loaded.recovered){
+        showNotice("warn",
+          "<b>백업에서 복구했어요.</b> 저장 파일을 읽지 못해 <code>"+esc(loaded.recovered)+"</code> 를 대신 불러왔습니다.<br>"+
+          "마지막 기록 일부가 빠져 있을 수 있어요. 확인해 보세요.");
+      }
+      startApp();
+      return;
+    }
+
+    if(!loaded.ok && loaded.fileExists){
+      showFatal(loaded);        // 여기서 멈춘다. startApp 을 부르지 않는다
+      return;
+    }
+
+    // 파일이 아예 없는 경우 = 첫 실행. 예전 localStorage 가 있으면 한 번만 옮긴다
+    var legacy=null;
+    try{ var raw=localStorage.getItem(LEGACY_STORE); if(raw) legacy=JSON.parse(raw); }catch(e){}
+    data=migrate(legacy);
+    if(legacy){
+      await window.api.importFromLocalStorage(data);
+      toast("이전 데이터를 불러왔어요");
+    }
+    startApp();
   }
 
   function save(){
