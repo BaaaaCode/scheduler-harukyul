@@ -230,8 +230,18 @@ if (!gotTheLock) {
   });
 }
 
-app.on("before-quit", () => {
+/* 종료 직전에 화면 쪽 저장을 한 번 비운다.
+   화면은 편집을 150ms 모아서 저장한다(연타 방지). 편집 직후에 트레이에서
+   '종료'를 누르면 그 마지막 편집이 디스크에 닿기 전에 프로세스가 끝난다. */
+let flushed = false;
+app.on("before-quit", (e) => {
   isQuitting = true;
+  if (flushed || !win || win.isDestroyed() || !win.webContents) return;
+  e.preventDefault();
+  const finish = () => { flushed = true; app.quit(); };
+  const timer = setTimeout(finish, 1500);   // 응답이 없어도 1.5초 뒤엔 종료한다
+  ipcMain.once("data:flushed", () => { clearTimeout(timer); finish(); });
+  try { win.webContents.send("app:flush"); } catch (err) { clearTimeout(timer); finish(); }
 });
 
 app.on("window-all-closed", () => {

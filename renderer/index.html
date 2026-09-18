@@ -754,6 +754,11 @@
     clearTimeout(saveTimer);
     saveTimer=setTimeout(function(){ window.api.saveData(data); }, 150);
   }
+  /* 모아둔 저장을 지금 바로 쓴다. 종료·숨기기 직전에 쓴다. */
+  function flushSave(){
+    clearTimeout(saveTimer);
+    try{ return window.api.saveData(data); }catch(e){ return Promise.resolve(); }
+  }
 
   /* ── 자정 이월: 전날의 시작전·진행중 작업을 '남은 업무'로 옮김 ── */
   function rolloverIfNeeded(){
@@ -1361,7 +1366,7 @@
 
   /* ── Titlebar controls ── */
   document.getElementById("minBtn").addEventListener("click",function(){ window.api.minimize(); });
-  document.getElementById("closeBtn").addEventListener("click",function(){ window.api.closeToTray(); });
+  document.getElementById("closeBtn").addEventListener("click",function(){ flushSave(); window.api.closeToTray(); });
 
   document.getElementById("pinBtn").addEventListener("click",async function(){
     var next=!(cfg.alwaysOnTop);
@@ -1512,6 +1517,14 @@
       toast("가져오지 못했어요");
     }
   });
+
+  if(window.api && window.api.onFlush){
+    window.api.onFlush(function(){
+      var p=flushSave();
+      var done=function(){ try{ window.api.flushed(); }catch(e){} };
+      if(p && p.then) p.then(done, done); else done();
+    });
+  }
 
   boot();
 })();

@@ -17,5 +17,9 @@ contextBridge.exposeInMainWorld("api", {
   toggleAlwaysOnTop: (v) => ipcRenderer.invoke("window:toggleAlwaysOnTop", v),
   setOpacity: (v) => ipcRenderer.invoke("window:setOpacity", v),
   toggleAutoStart: (v) => ipcRenderer.invoke("app:toggleAutoStart", v),
-  notify: (payload) => ipcRenderer.invoke("notify", payload)
+  notify: (payload) => ipcRenderer.invoke("notify", payload),
+
+  // 종료 직전 저장 비우기
+  onFlush: (cb) => ipcRenderer.on("app:flush", () => cb()),
+  flushed: () => ipcRenderer.send("data:flushed")
 });
