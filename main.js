@@ -136,7 +136,7 @@ function createWindow() {
     alwaysOnTop: !!cfg.alwaysOnTop,
     opacity: typeof cfg.opacity === "number" ? cfg.opacity : 1,
     backgroundColor: "#00000000",
-    icon: trayIcon(),
+    icon: appIcon(),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -170,13 +170,24 @@ function debounce(fn, ms) {
   };
 }
 
-function trayIcon() {
+/* 창·작업표시줄용 아이콘 (원본 크기) */
+function appIcon() {
   const custom = path.join(__dirname, "assets", "icon.png");
-  if (fs.existsSync(custom)) return nativeImage.createFromPath(custom);
-  // 1x1 transparent fallback so Tray() never throws if no custom icon is supplied.
+  if (fs.existsSync(custom)) {
+    const img = nativeImage.createFromPath(custom);
+    if (!img.isEmpty()) return img;
+  }
+  // 아이콘 파일이 없어도 Tray() 가 죽지 않도록 하는 최소한의 대체물.
+  // 눈에 보이지 않으므로 assets/icon.png 를 두는 편이 낫다.
   const FALLBACK =
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
-  return nativeImage.createFromDataURL("data:image/png;base64," + FALLBACK).resize({ width: 16, height: 16 });
+  return nativeImage.createFromDataURL("data:image/png;base64," + FALLBACK);
+}
+
+/* 트레이용 (작게 줄여서) */
+function trayIcon() {
+  const img = appIcon();
+  return img.isEmpty() ? img : img.resize({ width: 16, height: 16 });
 }
 
 function createTray() {
