@@ -801,7 +801,7 @@
   }
 
   /* ── 알림: 마무리 시각 + 연속 사용 ── */
-  var usageStart=Date.now(), usageNotified=false, lastNightKey=null;
+  var usageStart=Date.now(), usageNotified=false;
   function remainingCoreCount(){
     var d=day(keyOf(new Date())), n=0;
     visibleBlocks().forEach(function(b){ (d.tasks[b.id]||[]).forEach(function(t){ if(t.status==="todo"||t.status==="doing") n++; }); });
@@ -814,8 +814,10 @@
       var p=s.nightTime.split(":");
       var target=new Date(now); target.setHours(+p[0]||0,+p[1]||0,0,0);
       var todayKey=keyOf(now);
-      if(now>=target && lastNightKey!==todayKey){
-        lastNightKey=todayKey;
+      // 어느 날에 이미 울렸는지를 저장해 둔다. 메모리에만 두면 앱을 다시 켤 때마다
+      // 그날 알림이 또 울린다(시각이 이미 지났으므로).
+      if(now>=target && s.lastNightNotified!==todayKey){
+        s.lastNightNotified=todayKey; save();
         var n=remainingCoreCount();
         notify("하루를 마무리할 시간", n>0?("남은 핵심 "+n+"개. 슬슬 마무리해요."):"오늘 수고했어요. 이제 쉬어도 돼요.");
       }
@@ -1451,12 +1453,12 @@
   document.getElementById("swNight").addEventListener("click",function(){
     if(!data.settings) data.settings={};
     data.settings.nightOn=!data.settings.nightOn;
-    lastNightKey=null;
+    data.settings.lastNightNotified=null;
     save(); applyConfigToUI();
   });
   document.getElementById("nightTime").addEventListener("change",function(){
     if(!data.settings) data.settings={};
-    data.settings.nightTime=this.value||"23:00"; lastNightKey=null;
+    data.settings.nightTime=this.value||"23:00"; data.settings.lastNightNotified=null;
     save();
   });
   document.getElementById("swUsage").addEventListener("click",function(){
