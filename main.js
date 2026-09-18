@@ -300,6 +300,46 @@ ipcMain.handle("data:export", async () => {
   }
 });
 
+/* 가져올 파일이 어떤 기록인지 한 줄로 요약한다. 확인 창에 보여주기 위한 것. */
+function summarize(d) {
+  try {
+    const days = Object.keys((d && d.days) || {}).sort();
+    let tasks = 0;
+    days.forEach((k) => {
+      const r = d.days[k];
+      if (r && r.tasks) Object.keys(r.tasks).forEach((b) => { tasks += (r.tasks[b] || []).length; });
+    });
+    return {
+      days: days.length,
+      from: days[0] || "-",
+      to: days[days.length - 1] || "-",
+      tasks: tasks,
+      inbox: ((d && d.inbox) || []).length,
+      carry: ((d && d.carry) || []).length
+    };
+  } catch (e) {
+    return null;
+  }
+}
+function describe(s) {
+  if (!s) return "읽을 수 없음";
+  return s.days + "일 (" + s.from + " ~ " + s.to + ")"
+       + " · 작업 " + s.tasks + "개 · 보관함 " + s.inbox + " · 남은 업무 " + s.carry;
+}
+
+/* 덮어쓰기 직전에 지금 기록을 따로 남긴다. 되돌릴 수 있게. */
+function snapshotBeforeImport() {
+  const fp = dataFilePath();
+  if (!fs.existsSync(fp)) return null;
+  const d = new Date();
+  const stamp = todayStamp() + "_" +
+    String(d.getHours()).padStart(2, "0") + String(d.getMinutes()).padStart(2, "0") +
+    String(d.getSeconds()).padStart(2, "0");
+  const out = path.join(getConfig().dataDir, "harukyul-before-import-" + stamp + ".json");
+  fs.copyFileSync(fp, out);
+  return out;
+}
+
 ipcMain.handle("data:import", async () => {
   const res = await dialog.showOpenDialog(win, {
     title: "하루결 데이터 가져오기 (폰 PWA에서 내보낸 .json 포함)",
@@ -307,13 +347,55 @@ ipcMain.handle("data:import", async () => {
     filters: [{ name: "JSON", extensions: ["json"] }]
   });
   if (res.canceled || !res.filePaths.length) return { ok: false };
+
+  let parsed;
   try {
-    const raw = fs.readFileSync(res.filePaths[0], "utf8");
-    const parsed = JSON.parse(raw);
-    return { ok: true, data: parsed };
+    parsed = JSON.parse(fs.readFileSync(res.filePaths[0], "utf8"));
   } catch (err) {
+    await dialog.showMessageBox(win, {
+      type: "error",
+      title: "가져오기 실패",
+      message: "이 파일을 읽을 수 없습니다.",
+      detail: String(err)
+    });
     return { ok: false, error: String(err) };
   }
+
+  // 무엇으로 바뀌는지 보여주고 확인받는다. 이 작업은 되돌리기 어렵다.
+  let current = null;
+  try { current = summarize(JSON.parse(fs.readFileSync(dataFilePath(), "utf8"))); } catch (e) {}
+
+  const ask = await dialog.showMessageBox(win, {
+    type: "warning",
+    buttons: ["가져오기", "취소"],
+    defaultId: 1,
+    cancelId: 1,
+    title: "데이터 가져오기",
+    message: "지금 기록을 이 파일의 내용으로 바꿉니다.",
+    detail:
+      "가져올 파일\n  " + describe(summarize(parsed)) + "\n\n" +
+      "지금 기록\n  " + (current ? describe(current) : "없음") + "\n\n" +
+      "바꾸기 전에 지금 기록을 harukyul-before-import-<시각>.json 으로 저장합니다."
+  });
+  if (ask.response !== 0) return { ok: false, canceled: true };
+
+  let snapshot = null;
+  try {
+    snapshot = snapshotBeforeImport();
+  } catch (err) {
+    const go = await dialog.showMessageBox(win, {
+      type: "error",
+      buttons: ["그래도 진행", "취소"],
+      defaultId: 1,
+      cancelId: 1,
+      title: "지금 기록을 저장하지 못했습니다",
+      message: "덮어쓰기 전 사본을 만들지 못했습니다.",
+      detail: String(err) + "\n\n진행하면 지금 기록을 되돌릴 수 없습니다."
+    });
+    if (go.response !== 0) return { ok: false, canceled: true };
+  }
+
+  return { ok: true, data: parsed, snapshot: snapshot };
 });
 
 /* ── IPC: config / window controls ── */

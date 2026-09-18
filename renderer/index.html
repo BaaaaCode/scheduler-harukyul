@@ -1425,9 +1425,12 @@
   });
   document.getElementById("importBtn").addEventListener("click",async function(){
     var res=await window.api.importData();
+    if(res.canceled) return;                       // 확인 창에서 취소
     if(res.ok && res.data){
       data=migrate(res.data); save(); render();
-      toast("가져왔어요");
+      toast(res.snapshot ? "가져왔어요 · 이전 기록은 따로 저장해 뒀어요" : "가져왔어요");
+    }else if(res.error){
+      toast("가져오지 못했어요");
     }
   });
 
