@@ -168,6 +168,8 @@
   .carry-pill .cstat{flex:none;width:9px;height:9px;border-radius:50%;background:var(--ink-faint);}
   .carry-pill .cstat.st-doing{background:var(--accent);}
   .carry-pill .cfrom{flex:none;font-size:10.5px;color:var(--ink-faint);white-space:nowrap;}
+  .carry-pill .cdone{flex:none;border:1px solid var(--line);background:#fff;color:var(--ink-soft);border-radius:8px;padding:6px 9px;font-size:12px;cursor:pointer;font-family:inherit;}
+  .carry-pill .cdone:hover{border-color:var(--accent);color:var(--accent);}
 
   /* ── State ── */
   .statecard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 12px;margin-bottom:16px;}
@@ -1016,6 +1018,7 @@
         '<span class="cstat st-'+st+'" title="'+STATUS_LABEL[st]+'"></span>'+
         '<div class="ptxt" contenteditable="true" spellcheck="false"></div>'+
         '<span class="cfrom"></span>'+
+        '<button class="cdone" title="'+(it.from?'원래 자리('+fromLabel(it)+')에 완료로 기록':'원래 자리를 몰라 오늘 같은 블럭에 완료로 기록')+'">완료</button>'+
         '<button class="place">배치</button>'+
         '<button class="del" aria-label="삭제">×</button>';
       p.querySelector(".ptxt").textContent=it.txt;
@@ -1027,6 +1030,7 @@
         it.txt=v; save();
       });
       txt.addEventListener("keydown",function(e){ if(e.key==="Enter"){e.preventDefault();txt.blur();} });
+      p.querySelector(".cdone").addEventListener("click",function(){ completeCarry(it.id); });
       p.querySelector(".place").addEventListener("click",function(){ openSheet("carry",it.id,it.txt); });
       p.querySelector(".del").addEventListener("click",function(){ removeCarry(it.id); });
       list.appendChild(p);
@@ -1189,6 +1193,18 @@
     var i=data.inbox.findIndex(function(x){return x.id===id;});
     if(i>-1) data.inbox.splice(i,1);
     save(); renderInbox();
+  }
+  // 남은 업무를 배치하지 않고 바로 완료 (v1.8.0) — 원래 날짜·블럭에 완료로 돌려놓는다.
+  // 그날 블럭 상한(BLOCK_LIMIT)은 지나간 기록이라 따지지 않는다. 원래 자리를 모르면 오늘 같은 블럭(없으면 아침)에
+  function completeCarry(id){
+    var i=data.carry.findIndex(function(x){return x.id===id;});
+    if(i<0) return;
+    var it=data.carry.splice(i,1)[0];
+    var key=it.from||keyOf(new Date());
+    var bid=(it.fromBlock && ALL_BLOCK_IDS.indexOf(it.fromBlock)>-1)?it.fromBlock:"dawn";
+    day(key).tasks[bid].push({id:it.id||uid(),txt:it.txt,status:"done",subs:it.subs||[]});
+    save(); render(); companionHappy();
+    toast(it.from?(fromLabel(it)+"에 완료로 기록했어요"):"오늘 완료로 기록했어요");
   }
   function removeCarry(id){
     var i=data.carry.findIndex(function(x){return x.id===id;});
