@@ -505,8 +505,13 @@ ipcMain.handle("window:setOpacity", (e, value) => {
   saveConfig({ opacity: v });
   return { ok: true, value: v };
 });
+// 포터블 exe 는 켤 때마다 임시 폴더에 풀려 실행된다 → process.execPath 는 다음 부팅 땐 없는 경로.
+// electron-builder 가 넣어 주는 PORTABLE_EXECUTABLE_FILE(원래 exe 위치)을 먼저 쓴다 (v1.8.1)
+function launchPath() {
+  return process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
+}
 ipcMain.handle("app:toggleAutoStart", (e, value) => {
-  app.setLoginItemSettings({ openAtLogin: !!value, path: process.execPath });
+  app.setLoginItemSettings({ openAtLogin: !!value, path: launchPath() });
   saveConfig({ autoStart: !!value });
   return { ok: true, value: !!value };
 });
