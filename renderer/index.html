@@ -388,6 +388,9 @@
   .statfoot{font-size:11.5px;color:var(--ink-soft);margin-top:6px;text-align:right;}
   .spark{width:100%;height:auto;display:block;background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;}
   .statgrid{display:flex;flex-wrap:wrap;gap:8px;}
+  .labbox{margin:4px 0 8px;padding:10px 12px;border:1px dashed var(--line);border-radius:12px;}
+  .labbox .lablbl{font-size:11px;font-weight:700;color:var(--ink-faint);letter-spacing:.04em;margin-bottom:4px;}
+  .labbox .labempty{font-size:12px;color:var(--ink-faint);padding:4px 0;}
   .statcell{flex:1 1 28%;min-width:70px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 6px;text-align:center;}
   .statnum{font-size:17px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;}
   .statcap{font-size:10.5px;color:var(--ink-faint);margin-top:2px;}
@@ -560,6 +563,15 @@
       </div>
     </div>
 
+    <div class="setrow">
+      <div class="stxt2"><div class="stitle">개발자 모드</div><div class="sdesc">켜면 아래에 실험 중인 기능이 열립니다. 실험 기능은 바뀌거나 사라질 수 있어요</div></div>
+      <button class="swtch" id="swDevMode"><span class="knob"></span></button>
+    </div>
+    <div id="labBox" class="labbox" hidden>
+      <div class="lablbl">실험실</div>
+      <div id="labList"></div>
+    </div>
+
     <button class="sheet-cancel" id="settingsClose">닫기</button>
   </div>
 </div>
@@ -612,9 +624,19 @@
   var SCORE_TO_STATE={1:"break",2:"low",3:"soso",4:"joy",5:"good"};
   var SCORE_COLORS=[null,"#bd7b72","#9aa0ad","#cbb26a","#d99a6c","#7da87f"];
   function moodMode(){ return (data.settings&&data.settings.moodMode)||"word"; }
-  var STATUS_ORDER=["todo","doing","done","dropped"];
+  /* ── 개발자 모드 · 실험실 (v1.6.0) ──
+     실험 기능은 EXPERIMENTS 에 한 줄 더하고, 쓰는 곳에서 exp("이름") 으로 막는다.
+     동작 조건 = 개발자 모드 켬 && 그 실험 켬. 개발자 모드를 끄면 켜 둔 실험도 전부 멈춘다(값은 남김).
+     안정화되면 여기서 빼고 정규 설정으로 옮긴다. */
+  var EXPERIMENTS=[
+    // { key:"inboxSubs", title:"보관함 하위 업무", desc:"보관함에서도 체크리스트를 만들고, 배치할 때 따라가게" }  ← v1.7.0
+  ];
+  function exp(key){ var st=data.settings||{}; return !!(st.devMode && st.exp && st.exp[key]===true); }
+  // 상태는 3단계 (v1.6.0). 「종료(dropped)」 는 80일·107일 기록에서 한 번도 쓰이지 않아 순환에서 뺐다.
+  // 예전 기록에 남은 dropped 는 그대로 보이고, 누르면 「시작 전」 으로 돌아온다
+  var STATUS_ORDER=["todo","doing","done"];
   var STATUS_LABEL={todo:"시작 전",doing:"진행 중",done:"완료",dropped:"종료"};
-  function cycleStatus(s){ var i=STATUS_ORDER.indexOf(s); if(i<0)i=0; return STATUS_ORDER[(i+1)%STATUS_ORDER.length]; }
+  function cycleStatus(s){ var i=STATUS_ORDER.indexOf(s); if(s==="dropped") return "todo"; if(i<0)i=0; return STATUS_ORDER[(i+1)%STATUS_ORDER.length]; }
   function statusIcon(st){
     if(st==="done") return '<svg viewBox="0 0 12 12" fill="none"><path d="M2 6.2l2.6 2.6L10 3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     if(st==="doing") return '<span class="ic-dot"></span>';
@@ -624,6 +646,8 @@
   var WD=["일","월","화","수","목","금","토"];
 
   var data={days:{},inbox:[]};
+  // 하위 업무 펼침 — 화면 상태라 저장하지 않는다 (v1.6.0). 예전엔 task.open 으로 저장돼 내보내기에 섞였다
+  var openSubs={};
   var cursor=keyOf(new Date());
   var cfg={};
   var saveTimer=null;
@@ -643,6 +667,7 @@
     if(!d.days) d={days:d||{},inbox:[]};
     if(!d.inbox) d.inbox=[];
     if(!d.carry) d.carry=[];
+    d.inbox.concat(d.carry).forEach(function(x){ if(x && "open" in x) delete x.open; });   // v1.6.0 — 펼침은 저장하지 않는다
     if(!d.settings) d.settings={};
     if(!d.settings.moodMode) d.settings.moodMode="word";
     if(!d.settings.nightTime) d.settings.nightTime="23:00";
@@ -651,6 +676,8 @@
     if(d.settings.usageOn===undefined) d.settings.usageOn=false;
     if(d.settings.companionOn===undefined) d.settings.companionOn=true;
     if(d.settings.companionTalk===undefined) d.settings.companionTalk=true;
+    if(d.settings.devMode===undefined) d.settings.devMode=false;
+    if(!d.settings.exp || typeof d.settings.exp!=="object") d.settings.exp={};
     Object.keys(d.days).forEach(function(k){
       var rec=d.days[k];
       if(rec && rec.state && (rec.score===undefined||rec.score===null) && STATE_TO_SCORE[rec.state]!=null){
@@ -662,6 +689,7 @@
             if(!t.status) t.status = t.done ? "done" : "todo";
             if("done" in t) delete t.done;
             if(!t.subs) t.subs=[];
+            if("open" in t){ if(t.open) openSubs[t.id]=true; delete t.open; }   // 펼친 채였던 건 이번 실행 동안만 펼쳐 둔다
           });
         });
       }
@@ -1047,7 +1075,7 @@
       function add(){
         var v=inp.value.trim(); if(!v) return;
         if(activeCount(day(cursor).tasks[b.id])>=BLOCK_LIMIT){ toast("이 블럭은 "+BLOCK_LIMIT+"개까지예요"); return; }
-        day(cursor).tasks[b.id].push({id:uid(),txt:v,status:"todo",subs:[],open:false});
+        day(cursor).tasks[b.id].push({id:uid(),txt:v,status:"todo",subs:[]});
         save(); inp.value=""; renderBlocks(); renderSummary();
         document.querySelectorAll(".block").forEach(function(bl){ if(bl.dataset.b===b.id) bl.querySelector("input").focus(); });
       }
@@ -1055,7 +1083,7 @@
       inp.addEventListener("keydown",function(e){ if(e.key==="Enter") add(); });
       if(activeCount(list)>=BLOCK_LIMIT){
         inp.disabled=true; btn.disabled=true;
-        inp.placeholder="이 블럭은 "+BLOCK_LIMIT+"개까지 (완료·종료하면 자리 남음)";
+        inp.placeholder="이 블럭은 "+BLOCK_LIMIT+"개까지 (완료하면 자리 남음)";
       }
       wrap.appendChild(el);
     });
@@ -1070,7 +1098,7 @@
     var node=document.createElement("div");
     node.className="task st-"+st;
     var subDone=t.subs.filter(function(s){return s.done;}).length;
-    var toggleLabel=t.subs.length?((t.open?"▾ ":"▸ ")+subDone+"/"+t.subs.length):"＋";
+    var toggleLabel=t.subs.length?((openSubs[t.id]?"▾ ":"▸ ")+subDone+"/"+t.subs.length):"＋";
     node.innerHTML=
       '<button class="st" title="상태: '+STATUS_LABEL[st]+' (클릭해 변경)">'+statusIcon(st)+'</button>'+
       '<div class="txt" contenteditable="true" spellcheck="false"></div>'+
@@ -1087,11 +1115,11 @@
       t.txt=v; save(); renderSummary();
     });
     txt.addEventListener("keydown",function(e){ if(e.key==="Enter"){e.preventDefault();txt.blur();} });
-    node.querySelector(".subtog").addEventListener("click",function(){ t.open=!t.open; save(); renderBlocks(); });
+    node.querySelector(".subtog").addEventListener("click",function(){ openSubs[t.id]=!openSubs[t.id]; renderBlocks(); });
     node.querySelector(".move").addEventListener("click",function(){ openSheet(bid,t.id,t.txt); });
     node.querySelector(".del").addEventListener("click",function(){ removeTask(bid,t.id); });
     wrap.appendChild(node);
-    if(t.open) wrap.appendChild(subsNode(bid,t));
+    if(openSubs[t.id]) wrap.appendChild(subsNode(bid,t));
     return wrap;
   }
 
@@ -1212,7 +1240,7 @@
     if(!item){ closeSheet(); return; }
     sel.forEach(function(bid){
       if(activeCount(day(cursor).tasks[bid])>=BLOCK_LIMIT) return;
-      day(cursor).tasks[bid].push({id:uid(),txt:item.txt,status:item.status||"todo",subs:cloneSubs(item.subs),open:false});
+      day(cursor).tasks[bid].push({id:uid(),txt:item.txt,status:item.status||"todo",subs:cloneSubs(item.subs)});
     });
     save(); closeSheet(); render();
   }
@@ -1325,7 +1353,7 @@
       '<div class="statsec"><div class="statlbl">감정 추세</div>'+svg+'<div class="statfoot">'+emoText+'</div></div>'+
       '<div class="statsec"><div class="statlbl">작업 활동</div><div class="statgrid">'+
         statCell(taskTotal,"전체 작업")+statCell(counts.done,"완료")+statCell(counts.doing,"진행 중")+
-        statCell(counts.todo,"시작 전")+statCell(counts.dropped,"종료")+statCell(rate+"%","완료율")+
+        statCell(counts.todo,"시작 전")+statCell(rate+"%","완료율")+
       '</div></div>'+
       '<div class="statsec"><div class="statlbl">하위 업무</div><div class="statgrid">'+
         statCell(subDone+"/"+subTotal,"완료/전체")+statCell(tasksWithSub,"하위 있는 작업")+
@@ -1398,10 +1426,31 @@
     document.getElementById("usageHours").value=(data.settings&&data.settings.usageHours)||3;
     setSwitch("swCompanion", !(data.settings&&data.settings.companionOn===false));
     setSwitch("swCompanionTalk", !(data.settings&&data.settings.companionTalk===false));
+    renderLab();
     document.getElementById("dataDirLabel").textContent=cfg.dataDir||"";
     renderCompanion();
   }
   function setSwitch(id,on){ document.getElementById(id).classList.toggle("on",!!on); }
+  function renderLab(){
+    var on=!!(data.settings&&data.settings.devMode);
+    setSwitch("swDevMode", on);
+    var box=document.getElementById("labBox"); box.hidden=!on;
+    var list=document.getElementById("labList"); list.innerHTML="";
+    if(!EXPERIMENTS.length){ list.innerHTML='<div class="labempty">지금은 실험 중인 기능이 없어요</div>'; return; }
+    EXPERIMENTS.forEach(function(x){
+      var row=document.createElement("div"); row.className="setrow";
+      row.innerHTML='<div class="stxt2"><div class="stitle"></div><div class="sdesc"></div></div><button class="swtch"><span class="knob"></span></button>';
+      row.querySelector(".stitle").textContent=x.title;
+      row.querySelector(".sdesc").textContent=x.desc;
+      var sw=row.querySelector(".swtch"); sw.dataset.exp=x.key;
+      sw.classList.toggle("on", !!(data.settings.exp&&data.settings.exp[x.key]));
+      sw.addEventListener("click",function(){
+        data.settings.exp[x.key]=!data.settings.exp[x.key];
+        save(); renderLab(); renderBlocks();
+      });
+      list.appendChild(row);
+    });
+  }
 
   document.getElementById("settingsBtn").addEventListener("click",function(){
     document.getElementById("settingsBack").classList.add("open");
@@ -1482,6 +1531,11 @@
     if(!data.settings) data.settings={};
     data.settings.companionTalk=!(data.settings.companionTalk!==false);
     save(); applyConfigToUI();
+  });
+  document.getElementById("swDevMode").addEventListener("click",function(){
+    if(!data.settings) data.settings={};
+    data.settings.devMode=!data.settings.devMode;
+    save(); renderLab(); renderBlocks();
   });
   document.getElementById("companion").addEventListener("click",function(){
     if(data.settings&&data.settings.companionOn===false) return;

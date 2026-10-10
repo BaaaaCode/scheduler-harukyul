@@ -87,7 +87,7 @@ npm run build     # 포터블 실행 파일 빌드 → dist\하루결-portable.e
 
 ## 버전
 
-현재 **v1.5.1**. [유의적 버전(SemVer)](https://semver.org/lang/ko/)을 따르며, 버전별 변경 사항은 [`CHANGELOG.md`](./CHANGELOG.md)에 있습니다.
+현재 **v1.6.0**. [유의적 버전(SemVer)](https://semver.org/lang/ko/)을 따르며, 버전별 변경 사항은 [`CHANGELOG.md`](./CHANGELOG.md)에 있습니다.
 
 ---
 
