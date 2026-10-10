@@ -646,6 +646,8 @@
   var WD=["일","월","화","수","목","금","토"];
 
   var data={days:{},inbox:[]};
+  // 하위 업무 펼침 — 화면 상태라 저장하지 않는다 (v1.6.0). 예전엔 task.open 으로 저장돼 내보내기에 섞였다
+  var openSubs={};
   var cursor=keyOf(new Date());
   var cfg={};
   var saveTimer=null;
@@ -665,6 +667,7 @@
     if(!d.days) d={days:d||{},inbox:[]};
     if(!d.inbox) d.inbox=[];
     if(!d.carry) d.carry=[];
+    d.inbox.concat(d.carry).forEach(function(x){ if(x && "open" in x) delete x.open; });   // v1.6.0 — 펼침은 저장하지 않는다
     if(!d.settings) d.settings={};
     if(!d.settings.moodMode) d.settings.moodMode="word";
     if(!d.settings.nightTime) d.settings.nightTime="23:00";
@@ -686,6 +689,7 @@
             if(!t.status) t.status = t.done ? "done" : "todo";
             if("done" in t) delete t.done;
             if(!t.subs) t.subs=[];
+            if("open" in t){ if(t.open) openSubs[t.id]=true; delete t.open; }   // 펼친 채였던 건 이번 실행 동안만 펼쳐 둔다
           });
         });
       }
@@ -1071,7 +1075,7 @@
       function add(){
         var v=inp.value.trim(); if(!v) return;
         if(activeCount(day(cursor).tasks[b.id])>=BLOCK_LIMIT){ toast("이 블럭은 "+BLOCK_LIMIT+"개까지예요"); return; }
-        day(cursor).tasks[b.id].push({id:uid(),txt:v,status:"todo",subs:[],open:false});
+        day(cursor).tasks[b.id].push({id:uid(),txt:v,status:"todo",subs:[]});
         save(); inp.value=""; renderBlocks(); renderSummary();
         document.querySelectorAll(".block").forEach(function(bl){ if(bl.dataset.b===b.id) bl.querySelector("input").focus(); });
       }
@@ -1094,7 +1098,7 @@
     var node=document.createElement("div");
     node.className="task st-"+st;
     var subDone=t.subs.filter(function(s){return s.done;}).length;
-    var toggleLabel=t.subs.length?((t.open?"▾ ":"▸ ")+subDone+"/"+t.subs.length):"＋";
+    var toggleLabel=t.subs.length?((openSubs[t.id]?"▾ ":"▸ ")+subDone+"/"+t.subs.length):"＋";
     node.innerHTML=
       '<button class="st" title="상태: '+STATUS_LABEL[st]+' (클릭해 변경)">'+statusIcon(st)+'</button>'+
       '<div class="txt" contenteditable="true" spellcheck="false"></div>'+
@@ -1111,11 +1115,11 @@
       t.txt=v; save(); renderSummary();
     });
     txt.addEventListener("keydown",function(e){ if(e.key==="Enter"){e.preventDefault();txt.blur();} });
-    node.querySelector(".subtog").addEventListener("click",function(){ t.open=!t.open; save(); renderBlocks(); });
+    node.querySelector(".subtog").addEventListener("click",function(){ openSubs[t.id]=!openSubs[t.id]; renderBlocks(); });
     node.querySelector(".move").addEventListener("click",function(){ openSheet(bid,t.id,t.txt); });
     node.querySelector(".del").addEventListener("click",function(){ removeTask(bid,t.id); });
     wrap.appendChild(node);
-    if(t.open) wrap.appendChild(subsNode(bid,t));
+    if(openSubs[t.id]) wrap.appendChild(subsNode(bid,t));
     return wrap;
   }
 
@@ -1236,7 +1240,7 @@
     if(!item){ closeSheet(); return; }
     sel.forEach(function(bid){
       if(activeCount(day(cursor).tasks[bid])>=BLOCK_LIMIT) return;
-      day(cursor).tasks[bid].push({id:uid(),txt:item.txt,status:item.status||"todo",subs:cloneSubs(item.subs),open:false});
+      day(cursor).tasks[bid].push({id:uid(),txt:item.txt,status:item.status||"todo",subs:cloneSubs(item.subs)});
     });
     save(); closeSheet(); render();
   }
