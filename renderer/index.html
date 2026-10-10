@@ -1119,11 +1119,14 @@
     node.querySelector(".move").addEventListener("click",function(){ openSheet(bid,t.id,t.txt); });
     node.querySelector(".del").addEventListener("click",function(){ removeTask(bid,t.id); });
     wrap.appendChild(node);
-    if(openSubs[t.id]) wrap.appendChild(subsNode(bid,t));
+    if(openSubs[t.id]) wrap.appendChild(subsNode(t,renderBlocks,'.taskwrap[data-tid="'+t.id+'"] .subadd input'));
     return wrap;
   }
 
-  function subsNode(bid,t){
+  // 하위 업무 목록 — 블럭 할 일과 보관함(실험)이 같이 쓴다 (v1.7.0)
+  //   rerender : 바꾼 뒤 다시 그릴 함수 · focusSel : 추가한 뒤 입력칸으로 돌아갈 선택자
+  function subsNode(t,rerender,focusSel){
+    if(!t.subs) t.subs=[];
     var box=document.createElement("div"); box.className="subs";
     t.subs.forEach(function(s){
       var row=document.createElement("div"); row.className="sub"+(s.done?" done":"");
@@ -1134,15 +1137,15 @@
         '<div class="subtxt" contenteditable="true" spellcheck="false"></div>'+
         '<button class="del" aria-label="삭제">×</button>';
       row.querySelector(".subtxt").textContent=s.txt;
-      row.querySelector(".subchk").addEventListener("click",function(){ s.done=!s.done; save(); renderBlocks(); });
+      row.querySelector(".subchk").addEventListener("click",function(){ s.done=!s.done; save(); rerender(); });
       var stx=row.querySelector(".subtxt");
       stx.addEventListener("blur",function(){
         var v=stx.textContent.trim();
-        if(!v){ removeSub(t,s.id); return; }
+        if(!v){ removeSub(t,s.id,rerender); return; }
         s.txt=v; save();
       });
       stx.addEventListener("keydown",function(e){ if(e.key==="Enter"){e.preventDefault();stx.blur();} });
-      row.querySelector(".del").addEventListener("click",function(){ removeSub(t,s.id); });
+      row.querySelector(".del").addEventListener("click",function(){ removeSub(t,s.id,rerender); });
       box.appendChild(row);
     });
     var add=document.createElement("div"); add.className="subadd";
@@ -1150,8 +1153,8 @@
     var inp=add.querySelector("input"), btn=add.querySelector("button");
     function addSub(){
       var v=inp.value.trim(); if(!v) return;
-      t.subs.push({id:uid(),txt:v,done:false}); save(); renderBlocks();
-      var w=document.querySelector('.taskwrap[data-tid="'+t.id+'"] .subadd input'); if(w) w.focus();
+      t.subs.push({id:uid(),txt:v,done:false}); save(); rerender();
+      var w=document.querySelector(focusSel); if(w) w.focus();
     }
     btn.addEventListener("click",addSub);
     inp.addEventListener("keydown",function(e){ if(e.key==="Enter") addSub(); });
@@ -1159,10 +1162,10 @@
     return box;
   }
 
-  function removeSub(t,sid){
+  function removeSub(t,sid,rerender){
     var i=t.subs.findIndex(function(x){return x.id===sid;});
     if(i>-1) t.subs.splice(i,1);
-    save(); renderBlocks();
+    save(); rerender();
   }
 
   function removeTask(bid,id){
