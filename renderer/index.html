@@ -632,9 +632,11 @@
     // { key:"inboxSubs", title:"보관함 하위 업무", desc:"보관함에서도 체크리스트를 만들고, 배치할 때 따라가게" }  ← v1.7.0
   ];
   function exp(key){ var st=data.settings||{}; return !!(st.devMode && st.exp && st.exp[key]===true); }
-  var STATUS_ORDER=["todo","doing","done","dropped"];
+  // 상태는 3단계 (v1.6.0). 「종료(dropped)」 는 80일·107일 기록에서 한 번도 쓰이지 않아 순환에서 뺐다.
+  // 예전 기록에 남은 dropped 는 그대로 보이고, 누르면 「시작 전」 으로 돌아온다
+  var STATUS_ORDER=["todo","doing","done"];
   var STATUS_LABEL={todo:"시작 전",doing:"진행 중",done:"완료",dropped:"종료"};
-  function cycleStatus(s){ var i=STATUS_ORDER.indexOf(s); if(i<0)i=0; return STATUS_ORDER[(i+1)%STATUS_ORDER.length]; }
+  function cycleStatus(s){ var i=STATUS_ORDER.indexOf(s); if(s==="dropped") return "todo"; if(i<0)i=0; return STATUS_ORDER[(i+1)%STATUS_ORDER.length]; }
   function statusIcon(st){
     if(st==="done") return '<svg viewBox="0 0 12 12" fill="none"><path d="M2 6.2l2.6 2.6L10 3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     if(st==="doing") return '<span class="ic-dot"></span>';
@@ -1077,7 +1079,7 @@
       inp.addEventListener("keydown",function(e){ if(e.key==="Enter") add(); });
       if(activeCount(list)>=BLOCK_LIMIT){
         inp.disabled=true; btn.disabled=true;
-        inp.placeholder="이 블럭은 "+BLOCK_LIMIT+"개까지 (완료·종료하면 자리 남음)";
+        inp.placeholder="이 블럭은 "+BLOCK_LIMIT+"개까지 (완료하면 자리 남음)";
       }
       wrap.appendChild(el);
     });
@@ -1347,7 +1349,7 @@
       '<div class="statsec"><div class="statlbl">감정 추세</div>'+svg+'<div class="statfoot">'+emoText+'</div></div>'+
       '<div class="statsec"><div class="statlbl">작업 활동</div><div class="statgrid">'+
         statCell(taskTotal,"전체 작업")+statCell(counts.done,"완료")+statCell(counts.doing,"진행 중")+
-        statCell(counts.todo,"시작 전")+statCell(counts.dropped,"종료")+statCell(rate+"%","완료율")+
+        statCell(counts.todo,"시작 전")+statCell(rate+"%","완료율")+
       '</div></div>'+
       '<div class="statsec"><div class="statlbl">하위 업무</div><div class="statgrid">'+
         statCell(subDone+"/"+subTotal,"완료/전체")+statCell(tasksWithSub,"하위 있는 작업")+
