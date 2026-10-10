@@ -3,14 +3,12 @@ const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, nativeImage, Notificati
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
+const { planBackupKeep, NAME_RE } = require("./backup");
 
 const CONFIG_PATH = path.join(app.getPath("userData"), "config.json");
 const DEFAULT_DATA_DIR = app.getPath("userData");
 const DATA_FILENAME = "harukyul-data.json";
 const BACKUP_DIRNAME = "harukyul-backups";
-const BACKUP_DAILY_DAYS = 14;    // 최근 14일: 매일 보관
-const BACKUP_WEEKLY_DAYS = 70;   // 그 이후 ~8주: 주 1개
-const BACKUP_MONTHLY_DAYS = 400; // 그 이후 ~1년: 월 1개 (넘으면 삭제)
 const ONEDRIVE_HINT = path.join(os.homedir(), "OneDrive");
 
 let win = null;
@@ -82,40 +80,15 @@ function writeDailyBackup(contents) {
 }
 function pruneBackups() {
   // 계단식(GFS) 솎아내기: 최근은 매일, 오래된 건 주 1개 → 월 1개만 남김.
+  // 규칙 자체는 backup.js 에 있다(테스트 가능하도록 분리).
   try {
     const dir = backupDir();
-    const DAY = 86400000;
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const items = fs
-      .readdirSync(dir)
-      .map((n) => n.match(/^harukyul-(\d{4})-(\d{2})-(\d{2})\.json$/) && n)
-      .filter(Boolean)
-      .map((n) => {
-        const m = n.match(/^harukyul-(\d{4})-(\d{2})-(\d{2})\.json$/);
-        const d = new Date(+m[1], +m[2] - 1, +m[3]); d.setHours(0, 0, 0, 0);
-        return { name: n, date: d, ageDays: Math.round((today - d) / DAY) };
-      })
-      .sort((a, b) => b.date - a.date); // 최신 먼저
-
-    const keep = new Set();
-    const seenWeek = new Set();
-    const seenMonth = new Set();
-    items.forEach((it) => {
-      if (it.ageDays < 0 || it.ageDays <= BACKUP_DAILY_DAYS) {
-        keep.add(it.name); // 미래 날짜(시계 변경) 또는 최근 14일: 매일 보관
-      } else if (it.ageDays <= BACKUP_WEEKLY_DAYS) {
-        const wk = "W" + Math.floor(it.ageDays / 7);
-        if (!seenWeek.has(wk)) { seenWeek.add(wk); keep.add(it.name); }
-      } else if (it.ageDays <= BACKUP_MONTHLY_DAYS) {
-        const mo = it.date.getFullYear() + "-" + (it.date.getMonth() + 1);
-        if (!seenMonth.has(mo)) { seenMonth.add(mo); keep.add(it.name); }
-      }
-      // BACKUP_MONTHLY_DAYS 초과 → keep 안 함 → 삭제
-    });
-
-    items.forEach((it) => {
-      if (!keep.has(it.name)) {
-        try { fs.unlinkSync(path.join(dir, it.name)); } catch (e) {}
+    const names = fs.readdirSync(dir);
+    const keep = planBackupKeep(names, new Date());
+    names.forEach((n) => {
+      if (!NAME_RE.test(n)) return;
+      if (!keep.has(n)) {
+        try { fs.unlinkSync(path.join(dir, n)); } catch (e) {}
       }
     });
   } catch (e) {}
@@ -126,7 +99,7 @@ function latestGoodBackup() {
     if (!fs.existsSync(dir)) return null;
     const files = fs
       .readdirSync(dir)
-      .filter((n) => /^harukyul-\d{4}-\d{2}-\d{2}\.json$/.test(n))
+      .filter((n) => NAME_RE.test(n))
       .sort();
     for (let i = files.length - 1; i >= 0; i--) {
       try {
@@ -163,7 +136,7 @@ function createWindow() {
     alwaysOnTop: !!cfg.alwaysOnTop,
     opacity: typeof cfg.opacity === "number" ? cfg.opacity : 1,
     backgroundColor: "#00000000",
-    icon: trayIcon(),
+    icon: appIcon(),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -197,13 +170,24 @@ function debounce(fn, ms) {
   };
 }
 
-function trayIcon() {
+/* 창·작업표시줄용 아이콘 (원본 크기) */
+function appIcon() {
   const custom = path.join(__dirname, "assets", "icon.png");
-  if (fs.existsSync(custom)) return nativeImage.createFromPath(custom);
-  // 1x1 transparent fallback so Tray() never throws if no custom icon is supplied.
+  if (fs.existsSync(custom)) {
+    const img = nativeImage.createFromPath(custom);
+    if (!img.isEmpty()) return img;
+  }
+  // 아이콘 파일이 없어도 Tray() 가 죽지 않도록 하는 최소한의 대체물.
+  // 눈에 보이지 않으므로 assets/icon.png 를 두는 편이 낫다.
   const FALLBACK =
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
-  return nativeImage.createFromDataURL("data:image/png;base64," + FALLBACK).resize({ width: 16, height: 16 });
+  return nativeImage.createFromDataURL("data:image/png;base64," + FALLBACK);
+}
+
+/* 트레이용 (작게 줄여서) */
+function trayIcon() {
+  const img = appIcon();
+  return img.isEmpty() ? img : img.resize({ width: 16, height: 16 });
 }
 
 function createTray() {
@@ -257,8 +241,18 @@ if (!gotTheLock) {
   });
 }
 
-app.on("before-quit", () => {
+/* 종료 직전에 화면 쪽 저장을 한 번 비운다.
+   화면은 편집을 150ms 모아서 저장한다(연타 방지). 편집 직후에 트레이에서
+   '종료'를 누르면 그 마지막 편집이 디스크에 닿기 전에 프로세스가 끝난다. */
+let flushed = false;
+app.on("before-quit", (e) => {
   isQuitting = true;
+  if (flushed || !win || win.isDestroyed() || !win.webContents) return;
+  e.preventDefault();
+  const finish = () => { flushed = true; app.quit(); };
+  const timer = setTimeout(finish, 1500);   // 응답이 없어도 1.5초 뒤엔 종료한다
+  ipcMain.once("data:flushed", () => { clearTimeout(timer); finish(); });
+  try { win.webContents.send("app:flush"); } catch (err) { clearTimeout(timer); finish(); }
 });
 
 app.on("window-all-closed", () => {
@@ -327,6 +321,46 @@ ipcMain.handle("data:export", async () => {
   }
 });
 
+/* 가져올 파일이 어떤 기록인지 한 줄로 요약한다. 확인 창에 보여주기 위한 것. */
+function summarize(d) {
+  try {
+    const days = Object.keys((d && d.days) || {}).sort();
+    let tasks = 0;
+    days.forEach((k) => {
+      const r = d.days[k];
+      if (r && r.tasks) Object.keys(r.tasks).forEach((b) => { tasks += (r.tasks[b] || []).length; });
+    });
+    return {
+      days: days.length,
+      from: days[0] || "-",
+      to: days[days.length - 1] || "-",
+      tasks: tasks,
+      inbox: ((d && d.inbox) || []).length,
+      carry: ((d && d.carry) || []).length
+    };
+  } catch (e) {
+    return null;
+  }
+}
+function describe(s) {
+  if (!s) return "읽을 수 없음";
+  return s.days + "일 (" + s.from + " ~ " + s.to + ")"
+       + " · 작업 " + s.tasks + "개 · 보관함 " + s.inbox + " · 남은 업무 " + s.carry;
+}
+
+/* 덮어쓰기 직전에 지금 기록을 따로 남긴다. 되돌릴 수 있게. */
+function snapshotBeforeImport() {
+  const fp = dataFilePath();
+  if (!fs.existsSync(fp)) return null;
+  const d = new Date();
+  const stamp = todayStamp() + "_" +
+    String(d.getHours()).padStart(2, "0") + String(d.getMinutes()).padStart(2, "0") +
+    String(d.getSeconds()).padStart(2, "0");
+  const out = path.join(getConfig().dataDir, "harukyul-before-import-" + stamp + ".json");
+  fs.copyFileSync(fp, out);
+  return out;
+}
+
 ipcMain.handle("data:import", async () => {
   const res = await dialog.showOpenDialog(win, {
     title: "하루결 데이터 가져오기 (폰 PWA에서 내보낸 .json 포함)",
@@ -334,13 +368,55 @@ ipcMain.handle("data:import", async () => {
     filters: [{ name: "JSON", extensions: ["json"] }]
   });
   if (res.canceled || !res.filePaths.length) return { ok: false };
+
+  let parsed;
   try {
-    const raw = fs.readFileSync(res.filePaths[0], "utf8");
-    const parsed = JSON.parse(raw);
-    return { ok: true, data: parsed };
+    parsed = JSON.parse(fs.readFileSync(res.filePaths[0], "utf8"));
   } catch (err) {
+    await dialog.showMessageBox(win, {
+      type: "error",
+      title: "가져오기 실패",
+      message: "이 파일을 읽을 수 없습니다.",
+      detail: String(err)
+    });
     return { ok: false, error: String(err) };
   }
+
+  // 무엇으로 바뀌는지 보여주고 확인받는다. 이 작업은 되돌리기 어렵다.
+  let current = null;
+  try { current = summarize(JSON.parse(fs.readFileSync(dataFilePath(), "utf8"))); } catch (e) {}
+
+  const ask = await dialog.showMessageBox(win, {
+    type: "warning",
+    buttons: ["가져오기", "취소"],
+    defaultId: 1,
+    cancelId: 1,
+    title: "데이터 가져오기",
+    message: "지금 기록을 이 파일의 내용으로 바꿉니다.",
+    detail:
+      "가져올 파일\n  " + describe(summarize(parsed)) + "\n\n" +
+      "지금 기록\n  " + (current ? describe(current) : "없음") + "\n\n" +
+      "바꾸기 전에 지금 기록을 harukyul-before-import-<시각>.json 으로 저장합니다."
+  });
+  if (ask.response !== 0) return { ok: false, canceled: true };
+
+  let snapshot = null;
+  try {
+    snapshot = snapshotBeforeImport();
+  } catch (err) {
+    const go = await dialog.showMessageBox(win, {
+      type: "error",
+      buttons: ["그래도 진행", "취소"],
+      defaultId: 1,
+      cancelId: 1,
+      title: "지금 기록을 저장하지 못했습니다",
+      message: "덮어쓰기 전 사본을 만들지 못했습니다.",
+      detail: String(err) + "\n\n진행하면 지금 기록을 되돌릴 수 없습니다."
+    });
+    if (go.response !== 0) return { ok: false, canceled: true };
+  }
+
+  return { ok: true, data: parsed, snapshot: snapshot };
 });
 
 /* ── IPC: config / window controls ── */
@@ -349,22 +425,62 @@ ipcMain.handle("config:get", () => {
   return Object.assign({}, cfg, { dataFile: dataFilePath(), oneDriveHint: ONEDRIVE_HINT });
 });
 
+function readSummary(fp) {
+  try { return summarize(JSON.parse(fs.readFileSync(fp, "utf8"))); } catch (e) { return null; }
+}
+
 ipcMain.handle("config:chooseFolder", async () => {
   const res = await dialog.showOpenDialog(win, {
     title: "데이터 저장 폴더 선택 (예: OneDrive 폴더)",
     properties: ["openDirectory", "createDirectory"]
   });
   if (res.canceled || !res.filePaths.length) return { ok: false };
+
   const newDir = res.filePaths[0];
   const oldFile = dataFilePath();
-  saveConfig({ dataDir: newDir });
-  const newFile = dataFilePath();
-  try {
-    if (fs.existsSync(oldFile) && !fs.existsSync(newFile)) {
-      fs.copyFileSync(oldFile, newFile);
+  const newFile = path.join(newDir, DATA_FILENAME);
+  if (path.resolve(oldFile) === path.resolve(newFile)) return { ok: false, same: true };
+
+  const hasOld = fs.existsSync(oldFile);
+  const hasNew = fs.existsSync(newFile);
+
+  // 새 폴더에 이미 기록이 있으면 어느 쪽을 쓸지 물어야 한다.
+  // 묻지 않고 폴더만 바꾸면, 화면에 남아 있던 옛 기록이 다음 저장 때
+  // 새 폴더의 기록을 덮어쓴다. 기기 두 대를 같은 폴더로 쓸 때 실제로 일어난다.
+  if (hasOld && hasNew) {
+    const a = readSummary(oldFile);
+    const b = readSummary(newFile);
+    const ask = await dialog.showMessageBox(win, {
+      type: "question",
+      buttons: ["새 폴더의 기록을 쓴다", "지금 기록으로 덮어쓴다", "취소"],
+      defaultId: 0,
+      cancelId: 2,
+      title: "새 폴더에 이미 기록이 있어요",
+      message: "어느 쪽을 이어서 쓸까요?",
+      detail:
+        "새 폴더\n  " + (b ? describe(b) : "읽을 수 없음") + "\n\n" +
+        "지금 기록\n  " + (a ? describe(a) : "읽을 수 없음") + "\n\n" +
+        "덮어쓰기를 고르면 새 폴더의 기록을 먼저 따로 저장합니다."
+    });
+    if (ask.response === 2) return { ok: false, canceled: true };
+    if (ask.response === 1) {
+      try {
+        const d = new Date();
+        const stamp = todayStamp() + "_" +
+          String(d.getHours()).padStart(2, "0") + String(d.getMinutes()).padStart(2, "0");
+        fs.copyFileSync(newFile, path.join(newDir, "harukyul-replaced-" + stamp + ".json"));
+        fs.copyFileSync(oldFile, newFile);
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
     }
-  } catch (e) {}
-  return { ok: true, dataDir: newDir, dataFile: newFile };
+  } else if (hasOld && !hasNew) {
+    try { fs.mkdirSync(newDir, { recursive: true }); fs.copyFileSync(oldFile, newFile); } catch (e) {}
+  }
+
+  saveConfig({ dataDir: newDir });
+  // reload:true — 화면이 반드시 새 폴더의 파일을 다시 읽어야 한다
+  return { ok: true, dataDir: newDir, dataFile: dataFilePath(), reload: true };
 });
 
 ipcMain.handle("window:minimize", () => {

@@ -412,6 +412,7 @@
   </div>
 
   <div class="scroll">
+    <div id="notice" class="notice" hidden></div>
     <header class="app-head">
       <div class="brand">
         <h1>하루결</h1>
@@ -572,6 +573,19 @@
   </div>
 </div>
 
+<div class="fatalback" id="fatal" hidden>
+  <div class="fatal">
+    <h4>기록을 읽지 못했어요</h4>
+    <p id="fatalMsg"></p>
+    <p>원본은 그대로 두었어요. 지우지 않았습니다.</p>
+    <p>저장 폴더<br><code id="fatalDir"></code></p>
+    <div class="row">
+      <button class="btn" id="fatalOpen">폴더 위치 보기</button>
+      <button class="backbtn" id="fatalNew">빈 상태로 시작</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -657,6 +671,7 @@
       if("done" in t) delete t.done;
       if(!t.subs) t.subs=[];
     });
+    d.inbox.forEach(function(it){ if(!it.subs) it.subs=[]; });
     return d;
   }
 
@@ -667,20 +682,36 @@
   }
 
   /* ── Boot: load from local JSON file via main process; one-time legacy localStorage import ── */
-  async function boot(){
-    var loaded=await window.api.loadData();
-    if(loaded.ok && loaded.data){
-      data=migrate(loaded.data);
-    }else{
-      var legacy=null;
-      try{ var raw=localStorage.getItem(LEGACY_STORE); if(raw) legacy=JSON.parse(raw); }catch(e){}
-      data=migrate(legacy);
-      if(legacy){
-        await window.api.importFromLocalStorage(data);
-        toast("이전 데이터를 불러왔어요");
-      }
-    }
-    cfg=await window.api.getConfig();
+  /* 알림 띠 — 조용히 지나가면 안 되는 일을 화면에 남긴다 */
+  function showNotice(kind, html){
+    var el=document.getElementById("notice"); if(!el) return;
+    el.className="notice"+(kind==="warn"?" warn":"");
+    el.innerHTML='<button class="x" aria-label="닫기">×</button>'+html;
+    el.hidden=false;
+    el.querySelector(".x").onclick=function(){ el.hidden=true; };
+  }
+
+  /* 파일은 있는데 못 읽었다. 빈 화면으로 시작하면 "기록이 다 사라졌다"로 보이고,
+     그 상태로 뭐라도 저장하면 진짜로 덮어쓴다. 그래서 여기서 멈춘다. */
+  function showFatal(loaded){
+    document.getElementById("fatalMsg").textContent =
+      "저장된 파일을 읽을 수 없었고, 백업에서도 복구하지 못했어요. " + (loaded.error||"");
+    document.getElementById("fatalDir").textContent = (cfg && cfg.dataFile) || "";
+    document.getElementById("fatal").hidden=false;
+    document.getElementById("fatalOpen").onclick=function(){
+      showNotice("warn","저장 폴더 경로예요.<br><code>"+esc((cfg&&cfg.dataDir)||"")+"</code>");
+      document.getElementById("fatal").hidden=true;
+    };
+    document.getElementById("fatalNew").onclick=function(){
+      document.getElementById("fatal").hidden=true;
+      showNotice("warn","<b>빈 상태로 시작했어요.</b> 지금 뭔가를 적으면 이 내용으로 저장됩니다. "+
+                        "원래 기록을 되살리려면 저장 폴더의 <code>.corrupt</code> 파일이나 "+
+                        "<code>harukyul-backups</code> 를 확인하세요.");
+      startApp();
+    };
+  }
+
+  function startApp(){
     applyConfigToUI();
     rolloverIfNeeded();
     render();
@@ -688,10 +719,46 @@
     startAlarms();
   }
 
+  async function boot(){
+    var loaded=await window.api.loadData();
+    cfg=await window.api.getConfig();
+
+    if(loaded.ok && loaded.data){
+      data=migrate(loaded.data);
+      if(loaded.recovered){
+        showNotice("warn",
+          "<b>백업에서 복구했어요.</b> 저장 파일을 읽지 못해 <code>"+esc(loaded.recovered)+"</code> 를 대신 불러왔습니다.<br>"+
+          "마지막 기록 일부가 빠져 있을 수 있어요. 확인해 보세요.");
+      }
+      startApp();
+      return;
+    }
+
+    if(!loaded.ok && loaded.fileExists){
+      showFatal(loaded);        // 여기서 멈춘다. startApp 을 부르지 않는다
+      return;
+    }
+
+    // 파일이 아예 없는 경우 = 첫 실행. 예전 localStorage 가 있으면 한 번만 옮긴다
+    var legacy=null;
+    try{ var raw=localStorage.getItem(LEGACY_STORE); if(raw) legacy=JSON.parse(raw); }catch(e){}
+    data=migrate(legacy);
+    if(legacy){
+      await window.api.importFromLocalStorage(data);
+      toast("이전 데이터를 불러왔어요");
+    }
+    startApp();
+  }
+
   function save(){
     data=migrate(data);
     clearTimeout(saveTimer);
     saveTimer=setTimeout(function(){ window.api.saveData(data); }, 150);
+  }
+  /* 모아둔 저장을 지금 바로 쓴다. 종료·숨기기 직전에 쓴다. */
+  function flushSave(){
+    clearTimeout(saveTimer);
+    try{ return window.api.saveData(data); }catch(e){ return Promise.resolve(); }
   }
 
   /* ── 자정 이월: 전날의 시작전·진행중 작업을 '남은 업무'로 옮김 ── */
@@ -734,7 +801,7 @@
   }
 
   /* ── 알림: 마무리 시각 + 연속 사용 ── */
-  var usageStart=Date.now(), usageNotified=false, lastNightKey=null;
+  var usageStart=Date.now(), usageNotified=false;
   function remainingCoreCount(){
     var d=day(keyOf(new Date())), n=0;
     visibleBlocks().forEach(function(b){ (d.tasks[b.id]||[]).forEach(function(t){ if(t.status==="todo"||t.status==="doing") n++; }); });
@@ -747,8 +814,10 @@
       var p=s.nightTime.split(":");
       var target=new Date(now); target.setHours(+p[0]||0,+p[1]||0,0,0);
       var todayKey=keyOf(now);
-      if(now>=target && lastNightKey!==todayKey){
-        lastNightKey=todayKey;
+      // 어느 날에 이미 울렸는지를 저장해 둔다. 메모리에만 두면 앱을 다시 켤 때마다
+      // 그날 알림이 또 울린다(시각이 이미 지났으므로).
+      if(now>=target && s.lastNightNotified!==todayKey){
+        s.lastNightNotified=todayKey; save();
         var n=remainingCoreCount();
         notify("하루를 마무리할 시간", n>0?("남은 핵심 "+n+"개. 슬슬 마무리해요."):"오늘 수고했어요. 이제 쉬어도 돼요.");
       }
@@ -868,7 +937,10 @@
     }
     data.inbox.forEach(function(it){
       var p=document.createElement("div"); p.className="pill";
+      var nsub=(it.subs||[]).length;
       p.innerHTML='<div class="ptxt" contenteditable="true" spellcheck="false"></div>'+
+                  (nsub?'<span class="subcnt" title="하위 업무 '+nsub+'개 (배치하면 함께 옮겨져요)">'+
+                        (it.subs.filter(function(x){return x.done;}).length)+'/'+nsub+'</span>':'')+
                   '<button class="place">배치</button>'+
                   '<button class="del" aria-label="삭제">×</button>';
       p.querySelector(".ptxt").textContent=it.txt;
@@ -1147,7 +1219,10 @@
   function moveToInbox(){
     if(!sheetCtx) return;
     var item=removeFromSource(sheetCtx.from,sheetCtx.id);
-    if(item) data.inbox.push({id:item.id||uid(),txt:item.txt});
+    // subs 를 같이 들고 간다. 예전에는 여기서 체크리스트가 조용히 사라졌다.
+    // 보관함 화면에서 하위 업무를 편집하는 기능은 아직 없지만(다음 버전),
+    // 블록으로 다시 배치하면 그대로 돌아온다.
+    if(item) data.inbox.push({id:item.id||uid(),txt:item.txt,subs:item.subs||[]});
     save(); closeSheet(); render();
   }
 
@@ -1300,7 +1375,7 @@
 
   /* ── Titlebar controls ── */
   document.getElementById("minBtn").addEventListener("click",function(){ window.api.minimize(); });
-  document.getElementById("closeBtn").addEventListener("click",function(){ window.api.closeToTray(); });
+  document.getElementById("closeBtn").addEventListener("click",function(){ flushSave(); window.api.closeToTray(); });
 
   document.getElementById("pinBtn").addEventListener("click",async function(){
     var next=!(cfg.alwaysOnTop);
@@ -1378,12 +1453,12 @@
   document.getElementById("swNight").addEventListener("click",function(){
     if(!data.settings) data.settings={};
     data.settings.nightOn=!data.settings.nightOn;
-    lastNightKey=null;
+    data.settings.lastNightNotified=null;
     save(); applyConfigToUI();
   });
   document.getElementById("nightTime").addEventListener("change",function(){
     if(!data.settings) data.settings={};
-    data.settings.nightTime=this.value||"23:00"; lastNightKey=null;
+    data.settings.nightTime=this.value||"23:00"; data.settings.lastNightNotified=null;
     save();
   });
   document.getElementById("swUsage").addEventListener("click",function(){
@@ -1414,10 +1489,28 @@
   });
   document.getElementById("chooseFolderBtn").addEventListener("click",async function(){
     var res=await window.api.chooseFolder();
-    if(res.ok){
-      cfg.dataDir=res.dataDir; applyConfigToUI();
-      toast("저장 폴더를 변경했어요");
+    if(res.canceled || res.same) return;
+    if(!res.ok){ if(res.error) toast("폴더를 바꾸지 못했어요"); return; }
+
+    cfg.dataDir=res.dataDir; cfg.dataFile=res.dataFile;
+
+    // 폴더만 바꾸고 화면을 그대로 두면, 남아 있던 옛 기록이 다음 저장 때
+    // 새 폴더의 파일을 덮어쓴다. 반드시 다시 읽는다.
+    if(res.reload){
+      var loaded=await window.api.loadData();
+      if(loaded.ok && loaded.data){
+        data=migrate(loaded.data);
+        if(loaded.recovered){
+          showNotice("warn","새 폴더의 파일을 읽지 못해 <code>"+esc(loaded.recovered)+"</code> 백업으로 불러왔어요.");
+        }
+      }else if(!loaded.ok && loaded.fileExists){
+        showFatal(loaded); return;
+      }
+      cursor=keyOf(new Date());
+      rolloverIfNeeded();
     }
+    applyConfigToUI(); render();
+    toast("저장 폴더를 바꿨어요");
   });
   document.getElementById("exportBtn").addEventListener("click",async function(){
     var res=await window.api.exportData();
@@ -1425,11 +1518,22 @@
   });
   document.getElementById("importBtn").addEventListener("click",async function(){
     var res=await window.api.importData();
+    if(res.canceled) return;                       // 확인 창에서 취소
     if(res.ok && res.data){
       data=migrate(res.data); save(); render();
-      toast("가져왔어요");
+      toast(res.snapshot ? "가져왔어요 · 이전 기록은 따로 저장해 뒀어요" : "가져왔어요");
+    }else if(res.error){
+      toast("가져오지 못했어요");
     }
   });
+
+  if(window.api && window.api.onFlush){
+    window.api.onFlush(function(){
+      var p=flushSave();
+      var done=function(){ try{ window.api.flushed(); }catch(e){} };
+      if(p && p.then) p.then(done, done); else done();
+    });
+  }
 
   boot();
 })();
