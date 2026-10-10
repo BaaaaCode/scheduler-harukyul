@@ -143,6 +143,7 @@
     line-height:1;cursor:pointer;padding:0 2px;opacity:.55;transition:opacity .15s,color .15s;
   }
   .pill .del:hover{opacity:1;color:var(--break);}
+  .pillwrap .subs{padding:6px 0 4px 14px;}
   .addrow{display:flex;gap:8px;}
   .addrow input{
     flex:1;border:1px solid var(--line);background:#fff;border-radius:9px;
@@ -629,7 +630,7 @@
      동작 조건 = 개발자 모드 켬 && 그 실험 켬. 개발자 모드를 끄면 켜 둔 실험도 전부 멈춘다(값은 남김).
      안정화되면 여기서 빼고 정규 설정으로 옮긴다. */
   var EXPERIMENTS=[
-    // { key:"inboxSubs", title:"보관함 하위 업무", desc:"보관함에서도 체크리스트를 만들고, 배치할 때 따라가게" }  ← v1.7.0
+    { key:"inboxSubs", title:"보관함 하위 업무", desc:"보관함에서도 체크리스트를 펼쳐 쓰고, 배치하면 그대로 따라가요" }  // v1.7.0
   ];
   function exp(key){ var st=data.settings||{}; return !!(st.devMode && st.exp && st.exp[key]===true); }
   // 상태는 3단계 (v1.6.0). 「종료(dropped)」 는 80일·107일 기록에서 한 번도 쓰이지 않아 순환에서 뺐다.
@@ -963,12 +964,17 @@
       e.textContent="비어 있어요. 떠오르는 업무를 일단 여기 던져두세요.";
       list.appendChild(e); return;
     }
+    var subsOn=exp("inboxSubs");   // 실험 — 보관함 하위 업무 (v1.7.0)
     data.inbox.forEach(function(it){
+      if(!it.subs) it.subs=[];
+      var wrap=document.createElement("div"); wrap.className="pillwrap"; wrap.dataset.iid=it.id;
       var p=document.createElement("div"); p.className="pill";
-      var nsub=(it.subs||[]).length;
+      var nsub=it.subs.length, ndone=it.subs.filter(function(x){return x.done;}).length;
+      var subBtn=subsOn
+        ? '<button class="subtog" title="하위 업무">'+(nsub?((openSubs[it.id]?"▾ ":"▸ ")+ndone+"/"+nsub):"＋")+'</button>'
+        : (nsub?'<span class="subcnt" title="하위 업무 '+nsub+'개 (배치하면 함께 옮겨져요)">'+ndone+'/'+nsub+'</span>':'');
       p.innerHTML='<div class="ptxt" contenteditable="true" spellcheck="false"></div>'+
-                  (nsub?'<span class="subcnt" title="하위 업무 '+nsub+'개 (배치하면 함께 옮겨져요)">'+
-                        (it.subs.filter(function(x){return x.done;}).length)+'/'+nsub+'</span>':'')+
+                  subBtn+
                   '<button class="place">배치</button>'+
                   '<button class="del" aria-label="삭제">×</button>';
       p.querySelector(".ptxt").textContent=it.txt;
@@ -981,7 +987,12 @@
       txt.addEventListener("keydown",function(e){ if(e.key==="Enter"){e.preventDefault();txt.blur();} });
       p.querySelector(".place").addEventListener("click",function(){ openSheet("inbox",it.id,it.txt); });
       p.querySelector(".del").addEventListener("click",function(){ removeInbox(it.id); });
-      list.appendChild(p);
+      wrap.appendChild(p);
+      if(subsOn){
+        p.querySelector(".subtog").addEventListener("click",function(){ openSubs[it.id]=!openSubs[it.id]; renderInbox(); });
+        if(openSubs[it.id]) wrap.appendChild(subsNode(it,renderInbox,'.pillwrap[data-iid="'+it.id+'"] .subadd input'));
+      }
+      list.appendChild(wrap);
     });
   }
 
@@ -1251,8 +1262,7 @@
     if(!sheetCtx) return;
     var item=removeFromSource(sheetCtx.from,sheetCtx.id);
     // subs 를 같이 들고 간다. 예전에는 여기서 체크리스트가 조용히 사라졌다.
-    // 보관함 화면에서 하위 업무를 편집하는 기능은 아직 없지만(다음 버전),
-    // 블록으로 다시 배치하면 그대로 돌아온다.
+    // 보관함에서 편집은 실험실 「보관함 하위 업무」 를 켜면 된다 (v1.7.0). 블록으로 다시 배치하면 그대로 돌아온다.
     if(item) data.inbox.push({id:item.id||uid(),txt:item.txt,subs:item.subs||[]});
     save(); closeSheet(); render();
   }
@@ -1449,7 +1459,7 @@
       sw.classList.toggle("on", !!(data.settings.exp&&data.settings.exp[x.key]));
       sw.addEventListener("click",function(){
         data.settings.exp[x.key]=!data.settings.exp[x.key];
-        save(); renderLab(); renderBlocks();
+        save(); renderLab(); renderBlocks(); renderInbox();
       });
       list.appendChild(row);
     });
@@ -1538,7 +1548,7 @@
   document.getElementById("swDevMode").addEventListener("click",function(){
     if(!data.settings) data.settings={};
     data.settings.devMode=!data.settings.devMode;
-    save(); renderLab(); renderBlocks();
+    save(); renderLab(); renderBlocks(); renderInbox();
   });
   document.getElementById("companion").addEventListener("click",function(){
     if(data.settings&&data.settings.companionOn===false) return;
