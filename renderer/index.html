@@ -168,6 +168,13 @@
   .carry-pill .cstat{flex:none;width:9px;height:9px;border-radius:50%;background:var(--ink-faint);}
   .carry-pill .cstat.st-doing{background:var(--accent);}
   .carry-pill .cfrom{flex:none;font-size:10.5px;color:var(--ink-faint);white-space:nowrap;}
+  .carry-pill .cuntil{position:relative;flex:none;}
+  .carry-pill .cuntilbtn{border:1px dashed var(--line);background:none;color:var(--ink-faint);border-radius:8px;padding:5px 7px;font-size:11px;cursor:pointer;font-family:inherit;white-space:nowrap;}
+  .carry-pill .cuntilinp{position:absolute;inset:0;opacity:0;pointer-events:none;width:100%;}
+  .carry-pill.carry-hold{border-left-color:var(--line);}
+  .carry-pill.carry-hold .cuntilbtn{border-style:solid;color:var(--ink-soft);}
+  .carry-pill.carry-over{border-left-color:var(--break);}
+  .carry-pill.carry-over .cfrom,.carry-pill.carry-over .cuntilbtn{color:var(--break);}
   .carry-pill .cdone{flex:none;border:1px solid var(--line);background:#fff;color:var(--ink-soft);border-radius:8px;padding:6px 9px;font-size:12px;cursor:pointer;font-family:inherit;}
   .carry-pill .cdone:hover{border-color:var(--accent);color:var(--accent);}
 
@@ -807,7 +814,7 @@
           var arr=d.tasks[bid]||[], keep=[];
           arr.forEach(function(t){
             var s=t.status||"todo";
-            if(s==="todo"||s==="doing"){ data.carry.push({id:t.id,txt:t.txt,status:s,from:k,fromBlock:bid,subs:t.subs||[]}); moved++; }
+            if(s==="todo"||s==="doing"){ var c={id:t.id,txt:t.txt,status:s,from:k,fromBlock:bid,subs:t.subs||[]}; if(t.until) c.until=t.until; data.carry.push(c); moved++; }
             else keep.push(t);
           });
           d.tasks[bid]=keep;
@@ -998,6 +1005,7 @@
     });
   }
 
+  function shortDate(k){ var p=k.split("-"); return (+p[1])+"/"+(+p[2]); }
   function fromLabel(it){
     if(!it.from) return "";
     var p=it.from.split("-");
@@ -1011,18 +1019,31 @@
     if(!arr.length){ sec.style.display="none"; return; }
     sec.style.display="";
     list.innerHTML="";
+    var todayKey=keyOf(new Date());
     arr.forEach(function(it){
       var st=it.status||"todo";
-      var p=document.createElement("div"); p.className="pill carry-pill";
+      // 기간 지정 (v1.8.0) — 「~까지」 를 단 항목은 그날까지 조용히 머문다. 지나면 「기한 지남」
+      var hold=!!it.until && todayKey<=it.until, over=!!it.until && todayKey>it.until;
+      var p=document.createElement("div"); p.className="pill carry-pill"+(hold?" carry-hold":"")+(over?" carry-over":"");
       p.innerHTML=
         '<span class="cstat st-'+st+'" title="'+STATUS_LABEL[st]+'"></span>'+
         '<div class="ptxt" contenteditable="true" spellcheck="false"></div>'+
         '<span class="cfrom"></span>'+
+        '<span class="cuntil"><button class="cuntilbtn" title="이 날짜까지는 밀린 일로 보지 않아요">'+(it.until?("~"+shortDate(it.until)):"기간")+'</button>'+
+          '<input type="date" class="cuntilinp" aria-label="기간 끝 날짜" tabindex="-1"></span>'+
         '<button class="cdone" title="'+(it.from?'원래 자리('+fromLabel(it)+')에 완료로 기록':'원래 자리를 몰라 오늘 같은 블럭에 완료로 기록')+'">완료</button>'+
         '<button class="place">배치</button>'+
         '<button class="del" aria-label="삭제">×</button>';
       p.querySelector(".ptxt").textContent=it.txt;
-      p.querySelector(".cfrom").textContent=fromLabel(it);
+      p.querySelector(".cfrom").textContent=over?("기한 지남 · "+fromLabel(it)):fromLabel(it);
+      var uin=p.querySelector(".cuntilinp"); uin.value=it.until||""; uin.min=todayKey;
+      p.querySelector(".cuntilbtn").addEventListener("click",function(){
+        try{ uin.showPicker(); }catch(e){ uin.focus(); }
+      });
+      uin.addEventListener("change",function(){
+        if(uin.value) it.until=uin.value; else delete it.until;   // 지우면 기간 없음
+        save(); renderCarry();
+      });
       var txt=p.querySelector(".ptxt");
       txt.addEventListener("blur",function(){
         var v=txt.textContent.trim();
@@ -1270,7 +1291,9 @@
     if(!item){ closeSheet(); return; }
     sel.forEach(function(bid){
       if(activeCount(day(cursor).tasks[bid])>=BLOCK_LIMIT) return;
-      day(cursor).tasks[bid].push({id:uid(),txt:item.txt,status:item.status||"todo",subs:cloneSubs(item.subs)});
+      var nt={id:uid(),txt:item.txt,status:item.status||"todo",subs:cloneSubs(item.subs)};
+      if(item.until) nt.until=item.until;   // 기간을 단 채 배치했다가 못 끝내면 다시 남은 업무로 — 기간도 같이 돌아온다
+      day(cursor).tasks[bid].push(nt);
     });
     save(); closeSheet(); render();
   }
