@@ -21,6 +21,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "backup.js",
       "renderer/**/*",
       "assets/**/*"
     ],
